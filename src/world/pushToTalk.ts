@@ -5,7 +5,6 @@ let currentPttState = false;
 
 let pttKeybind = "V";
 let pttEnabled = false;
-let pttMode: "hold" | "toggle" = "hold";
 
 function pttLog(...args: unknown[]) {
   console.log("[PTT-Renderer]", ...args);
@@ -77,12 +76,11 @@ ipcRenderer.on(
   "push-to-talk-config",
   (
     _event,
-    config: { enabled: boolean; keybind: string; mode: "hold" | "toggle" },
+    config: { enabled: boolean; keybind: string },
   ) => {
     pttLog("Received PTT config:", config);
     pttEnabled = config.enabled;
     pttKeybind = config.keybind;
-    pttMode = config.mode;
   },
 );
 
