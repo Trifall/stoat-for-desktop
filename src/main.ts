@@ -34,7 +34,6 @@ if (acquiredLock) {
   // start auto update logic
   updateElectronApp();
 
-  // create and configure the app when electron is ready
   app.on("ready", () => {
     // initialise build URL from command line
     initBuildUrl();

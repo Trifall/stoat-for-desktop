@@ -3,20 +3,16 @@ import { globalShortcut, ipcMain } from "electron";
 import { config } from "./config";
 import { mainWindow } from "./window";
 
-// Debug logging helper
 function pttLog(...args: unknown[]) {
   console.log("[PTT]", ...args);
 }
 
-// Track PTT state
 let isPttActive = false;
 let registeredAccelerator: string | null = null;
 
-// For before-input-event tracking
 let currentKeybind = "";
 let keybindModifiers = { ctrl: false, shift: false, alt: false, meta: false };
 
-// For globalShortcut fallback
 let holdModeTimeout: NodeJS.Timeout | null = null;
 let releaseDelayTimeout: NodeJS.Timeout | null = null;
 const GLOBAL_HOLD_TIMEOUT_MS = 400; // Longer timeout to avoid initial blip
@@ -24,17 +20,12 @@ let lastGlobalTriggerTime = 0;
 let lastActivationTime = 0;
 const MIN_HOLD_DURATION_MS = 600; // Don't allow deactivation for first 600ms
 
-// Push to Talk Release Delay - accessed dynamically to avoid circular dependency
 function getReleaseDelay(): number {
   return config.pushToTalkReleaseDelay || 0;
 }
 
-// Log initial module load
 pttLog("Module loaded (using before-input-event)");
 
-/**
- * Send PTT state to renderer safely
- */
 function sendPttState(active: boolean) {
   if (
     mainWindow &&
@@ -46,10 +37,7 @@ function sendPttState(active: boolean) {
   }
 }
 
-/**
- * Deactivate PTT with optional release delay
- */
-function deactivatePtt(reason: string, useDelay: boolean = true) {
+function deactivatePtt(reason: string, useDelay = true) {
   // Clear any existing release delay timeout
   if (releaseDelayTimeout) {
     clearTimeout(releaseDelayTimeout);
@@ -81,9 +69,6 @@ function deactivatePtt(reason: string, useDelay: boolean = true) {
   }
 }
 
-/**
- * Activate PTT
- */
 function activatePtt(reason: string) {
   // Cancel any pending release delay when re-activating
   if (releaseDelayTimeout) {
@@ -99,9 +84,6 @@ function activatePtt(reason: string) {
   }
 }
 
-/**
- * Parse accelerator to key and modifiers
- */
 function parseAccelerator(accelerator: string) {
   const parts = accelerator
     .toLowerCase()
@@ -121,9 +103,6 @@ function parseAccelerator(accelerator: string) {
   };
 }
 
-/**
- * Check if input matches our keybind
- */
 function matchesKeybind(input: Electron.Input): boolean {
   const keyMatch = input.key.toLowerCase() === currentKeybind.toLowerCase();
   const ctrlMatch = input.control === keybindModifiers.ctrl;
@@ -146,8 +125,6 @@ function handleBeforeInputEvent(event: Electron.Event, input: Electron.Input) {
     return;
   }
 
-  // We matched the PTT keybind!
-  // Note: NOT calling preventDefault() so the key gets typed in chat
   const focused = mainWindow?.isFocused() ?? false;
 
   if (config.pushToTalkMode === "hold") {
@@ -171,14 +148,10 @@ function handleBeforeInputEvent(event: Electron.Event, input: Electron.Input) {
   }
 }
 
-/**
- * Register global hotkey using Electron's globalShortcut (fallback)
- */
 function registerGlobalHotkey(accelerator: string): boolean {
   pttLog("Registering global hotkey (fallback):", accelerator);
 
   try {
-    // Unregister existing first
     if (registeredAccelerator) {
       globalShortcut.unregister(registeredAccelerator);
     }
@@ -188,7 +161,6 @@ function registerGlobalHotkey(accelerator: string): boolean {
       const timeSinceLastTrigger = now - lastGlobalTriggerTime;
       lastGlobalTriggerTime = now;
 
-      // Only log on first trigger, not re-triggers (too verbose)
       if (!isPttActive) {
         pttLog(
           "Global hotkey triggered (fallback), delta:",
@@ -198,26 +170,20 @@ function registerGlobalHotkey(accelerator: string): boolean {
       }
 
       if (config.pushToTalkMode === "hold") {
-        // Hold mode with globalShortcut uses timeout-based approach
-
         if (!isPttActive) {
-          // First activation - start hold mode
           lastActivationTime = now;
           activatePtt("global hotkey");
         }
 
-        // Clear existing timeout
         if (holdModeTimeout) {
           clearTimeout(holdModeTimeout);
         }
 
-        // Set new timeout - but only deactivate if we've held long enough
         holdModeTimeout = setTimeout(() => {
           const holdDuration = Date.now() - lastActivationTime;
           if (holdDuration >= MIN_HOLD_DURATION_MS) {
             deactivatePtt("global timeout");
           } else {
-            // Not held long enough yet, extend timeout
             pttLog(
               "Extending timeout (held for",
               holdDuration,
@@ -235,7 +201,6 @@ function registerGlobalHotkey(accelerator: string): boolean {
           }
         }, GLOBAL_HOLD_TIMEOUT_MS);
       } else {
-        // Toggle mode
         isPttActive = !isPttActive;
         sendPttState(isPttActive);
         pttLog("PTT toggled:", isPttActive ? "ON" : "OFF");
@@ -256,9 +221,6 @@ function registerGlobalHotkey(accelerator: string): boolean {
   }
 }
 
-/**
- * Main function to register push-to-talk hotkey
- */
 export async function registerPushToTalkHotkey(): Promise<void> {
   pttLog("Registering PTT hotkey...");
 
@@ -271,15 +233,12 @@ export async function registerPushToTalkHotkey(): Promise<void> {
   const accelerator = config.pushToTalkKeybind || "Shift+Space";
   pttLog("Keybind:", accelerator, "Mode:", config.pushToTalkMode);
 
-  // Don't re-register if same
   if (registeredAccelerator === accelerator) {
     return;
   }
 
-  // Unregister existing
   unregisterPushToTalkHotkey();
 
-  // Parse the accelerator for before-input-event matching
   const parsed = parseAccelerator(accelerator);
   currentKeybind = parsed.key;
   keybindModifiers = {
@@ -308,8 +267,6 @@ export async function registerPushToTalkHotkey(): Promise<void> {
 
     // Remove any existing listener first to avoid duplicates
     mainWindow.webContents.off("before-input-event", handleBeforeInputEvent);
-
-    // Add the listener
     mainWindow.webContents.on("before-input-event", handleBeforeInputEvent);
     pttLog(
       "✓ before-input-event listener attached. Window focused:",
@@ -325,7 +282,6 @@ export async function registerPushToTalkHotkey(): Promise<void> {
   // When focused: unregister globalShortcut (allow typing)
   // When blurred: register globalShortcut (capture keys globally)
   if (mainWindow && !mainWindow.isDestroyed()) {
-    // Handle focus
     mainWindow.on("focus", () => {
       pttLog("Window focused - unregistering global hotkey to allow typing");
       if (registeredAccelerator) {
@@ -334,7 +290,6 @@ export async function registerPushToTalkHotkey(): Promise<void> {
       }
     });
 
-    // Handle blur
     mainWindow.on("blur", () => {
       pttLog("Window blurred - registering global hotkey for unfocused PTT");
       if (config.pushToTalk) {
@@ -342,7 +297,6 @@ export async function registerPushToTalkHotkey(): Promise<void> {
       }
     });
 
-    // Initially register if not focused
     if (!mainWindow.isFocused()) {
       const globalSuccess = registerGlobalHotkey(accelerator);
       if (globalSuccess) {
@@ -355,15 +309,11 @@ export async function registerPushToTalkHotkey(): Promise<void> {
     }
   }
 
-  // Send initial state (mic off)
   isPttActive = false;
   sendPttState(false);
   pttLog("✓ PTT initialized");
 }
 
-/**
- * Unregister all PTT hotkeys
- */
 export function unregisterPushToTalkHotkey(): void {
   pttLog("Unregistering PTT hotkey...");
 
@@ -384,16 +334,10 @@ export function unregisterPushToTalkHotkey(): void {
   globalShortcut.unregisterAll();
 }
 
-/**
- * Get current PTT state
- */
 export function getPushToTalkState(): boolean {
   return isPttActive;
 }
 
-/**
- * Initialize push-to-talk module
- */
 export function initPushToTalk(): void {
   pttLog("Initializing PTT (before-input-event method)...");
   pttLog("Config:", {
@@ -409,15 +353,11 @@ export function initPushToTalk(): void {
     sendPttState(data.active);
   });
 
-  // Register initial hotkey
   if (config.pushToTalk) {
     registerPushToTalkHotkey();
   }
 }
 
-/**
- * Cleanup PTT on app quit
- */
 export function cleanupPushToTalk(): void {
   pttLog("Cleaning up PTT...");
   unregisterPushToTalkHotkey();

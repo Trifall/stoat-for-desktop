@@ -206,7 +206,6 @@ class Config {
       value,
     );
 
-    // Register or unregister hotkey based on new value
     if (value) {
       registerPushToTalkHotkey().catch((err) => {
         console.error("[Config] Failed to register PTT hotkey:", err);
@@ -230,7 +229,6 @@ class Config {
       value,
     );
 
-    // Re-register hotkey with new keybind
     if (this.pushToTalk) {
       registerPushToTalkHotkey().catch((err) => {
         console.error("[Config] Failed to re-register PTT hotkey:", err);
@@ -252,7 +250,6 @@ class Config {
       value,
     );
 
-    // Re-register hotkey with new mode
     if (this.pushToTalk) {
       registerPushToTalkHotkey().catch((err) => {
         console.error("[Config] Failed to re-register PTT hotkey:", err);
