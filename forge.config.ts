@@ -10,7 +10,9 @@ import { PublisherGithub } from "@electron-forge/publisher-github";
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { FuseV1Options, FuseVersion } from "@electron/fuses";
 import * as fs from "node:fs";
+import * as https from "node:https";
 import * as path from "node:path";
+import * as tar from "tar";
 
 // import { globSync } from "node:fs";
 
@@ -60,7 +62,7 @@ if (!process.env.PLATFORM) {
         description: STRINGS.description,
         productName: STRINGS.name,
         productDescription: STRINGS.description,
-        runtimeVersion: "21.08",
+        runtimeVersion: "24.08",
         icon: `${ASSET_DIR}/icon.png`,
         categories: ["Network"],
         modules: [
@@ -115,7 +117,9 @@ if (!process.env.PLATFORM) {
     // testing purposes
     new MakerDeb({
       options: {
+        name: "stoat-desktop",
         productName: STRINGS.name,
+        description: STRINGS.description,
         productDescription: STRINGS.description,
         categories: ["Network"],
         icon: `${ASSET_DIR}/icon.png`,
@@ -126,11 +130,9 @@ if (!process.env.PLATFORM) {
 
 const config: ForgeConfig = {
   packagerConfig: {
-    asar: true,
-    asarUnpack: [
-      // unpack native modules so they can be loaded at runtime
-      "**/node_modules/@tkomde/iohook/**/*",
-    ],
+    asar: {
+      unpack: "**/node_modules/@tkomde/iohook/**/*",
+    },
     name: STRINGS.name,
     executableName: STRINGS.execName,
     icon: `${ASSET_DIR}/icon`,
@@ -141,6 +143,106 @@ const config: ForgeConfig = {
   },
   rebuildConfig: {},
   makers,
+  hooks: {
+    prePackage: async (_forgeConfig, platform) => {
+      // download Windows iohook binaries when building for Windows
+      if (platform !== "win32") {
+        console.log(`[prePackage] Building for ${platform}, skipping Windows iohook download`);
+        return;
+      }
+      
+      console.log("[prePackage] Building for Windows, downloading iohook binaries...");
+      
+      const iohookVersion = "1.1.7";
+      const electronAbi = "139"; // electron 38.x
+      const arch = "x64";
+      
+      const url = `https://registry.npmjs.org/@tkomde/iohook/-/iohook-${iohookVersion}-electron-v${electronAbi}-win32-${arch}.tar.gz`;
+      const downloadPath = path.join(__dirname, ".vite", "iohook-win32.tar.gz");
+      const extractPath = path.join(__dirname, "node_modules", "@tkomde", "iohook", "builds", `electron-v${electronAbi}-win32-${arch}`);
+      
+      fs.mkdirSync(path.dirname(downloadPath), { recursive: true });
+      
+      console.log(`[prePackage] Downloading from: ${url}`);
+      await new Promise<void>((resolve, reject) => {
+        const file = fs.createWriteStream(downloadPath);
+        https.get(url, (response) => {
+          if (response.statusCode === 302 || response.statusCode === 301) {
+            const redirectUrl = response.headers.location;
+            if (!redirectUrl) {
+              reject(new Error("Redirect location not found"));
+              return;
+            }
+            https.get(redirectUrl, (redirectResponse) => {
+              redirectResponse.pipe(file);
+              file.on("finish", () => {
+                file.close();
+                console.log("[prePackage] Download complete");
+                resolve();
+              });
+            }).on("error", reject);
+          } else {
+            response.pipe(file);
+            file.on("finish", () => {
+              file.close();
+              console.log("[prePackage] Download complete");
+              resolve();
+            });
+          }
+        }).on("error", (err) => {
+          fs.unlink(downloadPath, () => { /* ignore unlink errors */ });
+          reject(err);
+        });
+      });
+      
+      console.log("[prePackage] Extracting binaries...");
+      fs.mkdirSync(extractPath, { recursive: true });
+      await tar.x({
+        file: downloadPath,
+        cwd: extractPath,
+        strip: 1,
+      });
+      
+      console.log(`[prePackage] Windows iohook binaries extracted to: ${extractPath}`);
+      
+      fs.unlinkSync(downloadPath);
+    },
+    postPackage: async (_forgeConfig, options) => {
+      // copy native iohook module to the packaged app
+      const sourceDir = path.join(__dirname, "node_modules", "@tkomde", "iohook");
+      const targetDir = path.join(
+        options.outputPaths[0],
+        "resources",
+        "app.asar.unpacked",
+        "node_modules",
+        "@tkomde",
+        "iohook"
+      );
+      
+      if (fs.existsSync(sourceDir)) {
+        console.log("Copying iohook native module to:", targetDir);
+        fs.mkdirSync(targetDir, { recursive: true });
+        
+        // copy the entire module
+        const copyRecursive = (src: string, dest: string) => {
+          const entries = fs.readdirSync(src, { withFileTypes: true });
+          for (const entry of entries) {
+            const srcPath = path.join(src, entry.name);
+            const destPath = path.join(dest, entry.name);
+            if (entry.isDirectory()) {
+              fs.mkdirSync(destPath, { recursive: true });
+              copyRecursive(srcPath, destPath);
+            } else {
+              fs.copyFileSync(srcPath, destPath);
+            }
+          }
+        };
+        
+        copyRecursive(sourceDir, targetDir);
+        console.log("✓ iohook native module copied successfully");
+      }
+    },
+  },
   plugins: [
     new VitePlugin({
       // `build` can specify multiple entry builds, which can be Main process, Preload scripts, Worker process, etc.
@@ -180,43 +282,6 @@ const config: ForgeConfig = {
       },
     }),
   ],
-  hooks: {
-    postPackage: async (forgeConfig, options) => {
-      // copy native iohook module to the packaged app
-      const sourceDir = path.join(__dirname, "node_modules", "@tkomde", "iohook");
-      const targetDir = path.join(
-        options.outputPaths[0],
-        "resources",
-        "app.asar.unpacked",
-        "node_modules",
-        "@tkomde",
-        "iohook"
-      );
-      
-      if (fs.existsSync(sourceDir)) {
-        console.log("Copying iohook native module to:", targetDir);
-        fs.mkdirSync(targetDir, { recursive: true });
-        
-        // copy the entire module
-        const copyRecursive = (src: string, dest: string) => {
-          const entries = fs.readdirSync(src, { withFileTypes: true });
-          for (const entry of entries) {
-            const srcPath = path.join(src, entry.name);
-            const destPath = path.join(dest, entry.name);
-            if (entry.isDirectory()) {
-              fs.mkdirSync(destPath, { recursive: true });
-              copyRecursive(srcPath, destPath);
-            } else {
-              fs.copyFileSync(srcPath, destPath);
-            }
-          }
-        };
-        
-        copyRecursive(sourceDir, targetDir);
-        console.log("✓ iohook native module copied successfully");
-      }
-    },
-  },
 };
 
 export default config;

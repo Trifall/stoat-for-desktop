@@ -1,6 +1,7 @@
 {
   "name": "stoat-desktop",
   "productName": "stoat-desktop",
+  "description": "Open source user-first chat platform.",
   "version": "1.2.0",
   "main": ".vite/build/main.js",
   "repository": "stoatchat/desktop",
@@ -43,6 +44,7 @@
     "eslint-plugin-import": "^2.32.0",
     "json-schema-typed": "^8.0.1",
     "prettier": "^3.6.2",
+    "tar": "^7.5.7",
     "typescript": "~4.5.4",
     "vite": "^5.4.20"
   },
