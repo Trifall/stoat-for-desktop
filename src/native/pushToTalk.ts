@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { app, ipcMain } from "electron";
 import * as path from "node:path";
 
 import { config } from "./config";
@@ -24,8 +24,12 @@ function loadIohook() {
 
 const iohook = loadIohook();
 
+// Debug logging - check NODE_ENV since app.isPackaged may not work in dev mode
+const isDev = process.env.NODE_ENV === "development" || !app.isPackaged;
 function pttLog(...args: unknown[]) {
-  console.log("[PTT]", ...args);
+  if (isDev) {
+    console.log("[PTT]", ...args);
+  }
 }
 
 let isPttActive = false;
@@ -444,9 +448,11 @@ export async function registerPushToTalkHotkey(): Promise<void> {
     if (isWindowFocused) {
       pttLog("Window initially focused - not starting iohook to allow typing");
       // Don't start iohook when focused - before-input-event will handle keys
-    } else {
+    } else if (config.pushToTalk) {
       pttLog("Window initially blurred - starting iohook for global PTT");
       startIohook();
+    } else {
+      pttLog("Window initially blurred - PTT disabled, not starting iohook");
     }
     
     mainWindow.on("focus", () => {
@@ -464,14 +470,18 @@ export async function registerPushToTalkHotkey(): Promise<void> {
 
     mainWindow.on("blur", () => {
       if (isWindowFocused) {
-        pttLog("Window blurred - restarting iohook and clearing state");
         isWindowFocused = false;
-        // clear state before starting iohook to ensure clean slate
-        heldKeys.clear();
-        pttActivationKey = null;
-        // restart iohook when blurred to capture global keys
-        startIohook();
-        pttLog("[DEBUG] Cleared heldKeys and pttActivationKey on blur");
+        // only start iohook if PTT is enabled
+        if (config.pushToTalk) {
+          pttLog("Window blurred - restarting iohook for global PTT");
+          // clear state before starting iohook to ensure clean slate
+          heldKeys.clear();
+          pttActivationKey = null;
+          startIohook();
+          pttLog("[DEBUG] Cleared heldKeys and pttActivationKey on blur");
+        } else {
+          pttLog("Window blurred - PTT disabled, not starting iohook");
+        }
       }
     });
   }
@@ -530,7 +540,10 @@ export function initPushToTalk(): void {
     ) => {
       pttLog("Received settings update from renderer:", settings);
 
-      // Update config (setters automatically save to store)
+      // track if enabled state changed
+      const wasEnabled = config.pushToTalk;
+
+      // update config (setters automatically save to store)
       if (typeof settings.enabled === "boolean") {
         config.pushToTalk = settings.enabled;
       }
@@ -544,11 +557,22 @@ export function initPushToTalk(): void {
         config.pushToTalkReleaseDelay = settings.releaseDelay;
       }
 
+      // handle enabling/disabling PTT
+      if (typeof settings.enabled === "boolean") {
+        if (settings.enabled && !wasEnabled) {
+          // PTT was just enabled - register hotkey
+          pttLog("PTT enabled, registering hotkey...");
+          registerPushToTalkHotkey();
+        } else if (!settings.enabled && wasEnabled) {
+          // PTT was just disabled - unregister hotkey
+          pttLog("PTT disabled, unregistering hotkey...");
+          unregisterPushToTalkHotkey();
+        }
+      }
+
       // send updated config back to renderer
       sendPttConfig();
 
-      // note: the config setters automatically re-register hotkeys when needed
-      // and save to the electron-store
       pttLog("Config updated and saved");
     },
   );
