@@ -20,7 +20,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
+      - name: Pull desktop assets
+        run: |
+          # Pull Stoat brand assets for desktop app (submodule with update=none)
+          git -c submodule."assets".update=checkout submodule update --init assets
+
       - name: Checkout client repo
         if: ${{ !env.ACT }}
         uses: actions/checkout@v4
@@ -30,7 +35,7 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Check client directory exists
         shell: bash
         run: |
@@ -68,6 +73,12 @@ jobs:
       - name: Install dependencies (Client)
         working-directory: client
         run: pnpm install --frozen-lockfile
+      
+      - name: Pull brand assets
+        working-directory: client
+        run: |
+          # Pull Stoat brand assets (submodule with update=none)
+          git -c submodule."packages/client/assets".update=checkout submodule update --init packages/client/assets
       
       - name: Build dependencies
         working-directory: client
@@ -167,7 +178,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
+      - name: Pull desktop assets
+        run: |
+          # Pull Stoat brand assets for desktop app (submodule with update=none)
+          git -c submodule."assets".update=checkout submodule update --init assets
+
       - name: Checkout client repo
         if: ${{ !env.ACT }}
         uses: actions/checkout@v4
@@ -177,7 +193,7 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Check client directory exists
         shell: pwsh
         run: |
@@ -215,13 +231,19 @@ jobs:
       - name: Install dependencies (Client)
         working-directory: client
         run: pnpm install --frozen-lockfile
-      
+
+      - name: Pull brand assets
+        working-directory: client
+        run: |
+          # Pull Stoat brand assets (submodule with update=none)
+          git -c submodule."packages/client/assets".update=checkout submodule update --init packages/client/assets
+
       - name: Build dependencies
         working-directory: client
         run: |
           $ErrorActionPreference = 'Stop'
           mise build:deps
-      
+
       - name: Copy audio assets
         shell: pwsh
         run: |
