@@ -1,6 +1,6 @@
 <div align="center">
 <h1>
-  Stoat for Desktop
+  Forked Stoat for Desktop - View paired web client fork at [https://github.com/Trifall/stoat-for-web](https://github.com/Trifall/stoat-for-web)
   
   [![Stars](https://img.shields.io/github/stars/stoatchat/for-desktop?style=flat-square&logoColor=white)](https://github.com/stoatchat/for-desktop/stargazers)
   [![Forks](https://img.shields.io/github/forks/stoatchat/for-desktop?style=flat-square&logoColor=white)](https://github.com/stoatchat/for-desktop/network/members)
@@ -110,6 +110,70 @@ npx electron-forge start -- --ozone-platform=x11 --force-server=http://localhost
 
 See [SETUP_GUIDE.md](./SETUP_GUIDE.md) for detailed setup instructions.
 
+## Notification Sounds
+
+Stoat Desktop includes a comprehensive notification sound system that provides audio feedback for voice channel events and message notifications.
+
+### Features
+
+- **Master Toggle**: Enable/disable all notification sounds globally
+- **Volume Control**: Adjustable volume level (0-100%)
+- **Individual Sound Toggles**: Enable/disable specific sounds independently
+- **7 Different Sounds**:
+  - **Join Call**: When you join a voice channel
+  - **Leave Call**: When you leave a voice channel
+  - **Someone Joined**: When another user joins your voice channel
+  - **Someone Left**: When another user leaves your voice channel
+  - **Mute**: When your microphone is muted
+  - **Unmute**: When your microphone is unmuted
+  - **Receive Message**: When you receive a direct message or mention
+
+### Configuration
+
+Access notification sound settings in the app:
+**Settings → User Settings → Notification Sounds**
+
+Or configure via the config file:
+
+**Linux:** `~/.config/stoat-desktop/config.json`
+
+**macOS:** `~/Library/Application Support/stoat-for-desktop/config.json`
+
+**Windows:** `%APPDATA%/stoat-for-desktop/config.json`
+
+Example configuration:
+
+```json
+{
+  "notificationSounds": {
+    "enabled": true,
+    "volume": 0.3,
+    "join_call": true,
+    "leave_call": true,
+    "someone_joined": true,
+    "someone_left": true,
+    "mute": true,
+    "unmute": true,
+    "receive_message": true
+  }
+}
+```
+
+### Push-to-Talk Integration
+
+PTT has its own independent notification sound setting (disabled by default to prevent spam):
+
+- **PTT Sounds**: Enable/disable notification sounds specifically for PTT mute/unmute events
+- Access in: **Settings → User Settings → Voice & Video → Push-to-Talk Settings**
+
+### Technical Details
+
+- Uses Web Audio API with preloaded .wav files
+- Sounds respect both master toggle and individual settings
+- Volume applied at playback time
+- PTT sounds are separate to avoid excessive notifications during rapid toggling
+- All settings are persisted to the config file automatically
+
 ## Development Guide
 
 _Contribution guidelines for Desktop app TBA!_
@@ -126,7 +190,7 @@ Then proceed to setup:
 
 ```bash
 # clone the repository
-git clone --recursive https://github.com/stoatchat/for-desktop stoat-for-desktop
+git clone --recursive https://github.com/Trifall/stoat-for-desktop stoat-for-desktop
 cd stoat-for-desktop
 
 # install all packages

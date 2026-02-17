@@ -1,0 +1,326 @@
+name: Build Desktop Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout desktop repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Checkout client repo
+        if: ${{ !env.ACT }}
+        uses: actions/checkout@v4
+        with:
+          repository: Trifall/stoat-for-web
+          path: client
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Check client directory exists
+        shell: bash
+        run: |
+          if [ ! -d "client" ]; then
+            echo "ERROR: client/ directory not found. For local testing with act, ensure client/ exists."
+            echo "Run: git clone https://github.com/Trifall/stoat-for-web client"
+            exit 1
+          fi
+          echo "client/ directory found"
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+          run_install: false
+      
+      - name: Setup Mise
+        uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
+          working_directory: client
+      
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+      
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('client/pnpm-lock.yaml', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+      
+      - name: Clean old builds
+        run: |
+          rm -rf client/packages/client/dist client/packages/client/dist-prod
+          rm -rf client/packages/stoat.js/dist
+          rm -rf client/packages/solid-livekit-components/dist
+          rm -rf client/packages/js-lingui-solid/packages/*/dist
+      
+      - name: Install dependencies (Client)
+        working-directory: client
+        run: mise install:frozen
+      
+      - name: Build dependencies
+        working-directory: client
+        run: mise build:deps
+      
+      - name: Copy audio assets
+        run: |
+          if [ -d "client/packages/client/scripts/assets_fallback/audio" ]; then
+            mkdir -p "client/packages/client/assets/audio"
+            cp -r "client/packages/client/scripts/assets_fallback/audio/"* "client/packages/client/assets/audio/"
+            echo "Audio assets copied"
+            cd client/packages/client
+            node scripts/copyAssets.mjs
+            cd ../../..
+          fi
+      
+      - name: Process translations
+        working-directory: client
+        run: |
+          mise lingui:extract
+          mise lingui:compile
+      
+      - name: Build web client
+        working-directory: client
+        run: mise build
+      
+      - name: Copy web assets to desktop
+        run: |
+          rm -rf web-dist
+          mkdir -p web-dist
+          cp -r client/packages/client/dist/* web-dist/
+      
+      - name: Install desktop dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Clear Vite cache
+        run: rm -rf .vite
+      
+      - name: Build desktop app
+        run: pnpm package
+      
+      - name: Create distributable ZIP
+        run: |
+          rm -rf out/Stoat-linux-*
+          pnpm make --platform=linux --targets=@electron-forge/maker-zip
+      
+      - name: Find ZIP file
+        id: find-zip
+        run: |
+          ZIP_FILE=$(ls -t out/make/zip/linux/x64/*.zip 2>/dev/null | head -1)
+          if [ -n "$ZIP_FILE" ]; then
+            echo "zip_path=$ZIP_FILE" >> $GITHUB_OUTPUT
+            echo "zip_name=$(basename $ZIP_FILE)" >> $GITHUB_OUTPUT
+            echo "Found ZIP: $ZIP_FILE"
+          else
+            echo "ERROR: ZIP file not found"
+            exit 1
+          fi
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stoat-desktop-linux
+          path: ${{ steps.find-zip.outputs.zip_path }}
+          retention-days: 30
+      
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.find-zip.outputs.zip_path }}
+          name: Stoat Desktop ${{ github.ref_name }}
+          body: |
+            Stoat Desktop for Linux
+            
+            ## Installation
+            1. Download the ZIP file
+            2. Extract it
+            3. Run `./stoat-desktop` from the extracted folder
+            
+            ## Requirements
+            - X11 or XWayland for full functionality
+            - libx11, libxtst, libxt, libxinerama packages
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout desktop repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Checkout client repo
+        if: ${{ !env.ACT }}
+        uses: actions/checkout@v4
+        with:
+          repository: Trifall/stoat-for-web
+          path: client
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Check client directory exists
+        shell: pwsh
+        run: |
+          if (-Not (Test-Path "client")) {
+            Write-Error "ERROR: client/ directory not found. For local testing with act, ensure client/ exists. Run: git clone https://github.com/Trifall/stoat-for-web client"
+            exit 1
+          }
+          Write-Host "client/ directory found"
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+          run_install: false
+      
+      - name: Setup Mise
+        uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
+          working_directory: client
+      
+      - name: Get pnpm store directory
+        shell: pwsh
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $env:GITHUB_ENV
+      
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('client/pnpm-lock.yaml', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+      
+      - name: Clean old builds
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force client/packages/client/dist, client/packages/client/dist-prod, client/packages/stoat.js/dist, client/packages/solid-livekit-components/dist -ErrorAction SilentlyContinue
+          Get-ChildItem client/packages/js-lingui-solid/packages -Directory | ForEach-Object {
+            Remove-Item -Recurse -Force $_.FullName/dist -ErrorAction SilentlyContinue
+          }
+      
+      - name: Install dependencies (Client)
+        working-directory: client
+        run: mise install:frozen
+      
+      - name: Build dependencies
+        working-directory: client
+        run: mise build:deps
+      
+      - name: Copy audio assets
+        shell: pwsh
+        run: |
+          if (Test-Path "client/packages/client/scripts/assets_fallback/audio") {
+            New-Item -ItemType Directory -Force -Path "client/packages/client/assets/audio"
+            Copy-Item -Recurse -Force "client/packages/client/scripts/assets_fallback/audio/*" "client/packages/client/assets/audio/"
+            Write-Host "Audio assets copied"
+            Set-Location client/packages/client
+            node scripts/copyAssets.mjs
+            Set-Location ../../..
+          }
+      
+      - name: Process translations
+        working-directory: client
+        run: |
+          mise lingui:extract
+          mise lingui:compile
+      
+      - name: Build web client
+        working-directory: client
+        run: mise build
+      
+      - name: Copy web assets to desktop
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force web-dist -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path web-dist
+          Copy-Item -Recurse -Force client/packages/client/dist/* web-dist/
+      
+      - name: Install desktop dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Clear Vite cache
+        run: Remove-Item -Recurse -Force .vite -ErrorAction SilentlyContinue
+      
+      - name: Build desktop app
+        run: pnpm package
+      
+      - name: Create distributable ZIP
+        run: |
+          Remove-Item -Recurse -Force out/Stoat-win32-* -ErrorAction SilentlyContinue
+          pnpm make --platform=win32 --targets=@electron-forge/maker-zip
+      
+      - name: Find ZIP file
+        id: find-zip
+        shell: pwsh
+        run: |
+          $zipFile = Get-ChildItem out/make/zip/win32/x64/*.zip | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if ($zipFile) {
+            echo "zip_path=$($zipFile.FullName)" >> $env:GITHUB_OUTPUT
+            echo "zip_name=$($zipFile.Name)" >> $env:GITHUB_OUTPUT
+            echo "Found ZIP: $($zipFile.FullName)"
+          } else {
+            echo "ERROR: ZIP file not found"
+            exit 1
+          }
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stoat-desktop-windows
+          path: ${{ steps.find-zip.outputs.zip_path }}
+          retention-days: 30
+      
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.find-zip.outputs.zip_path }}
+          name: Stoat Desktop ${{ github.ref_name }}
+          body: |
+            Stoat Desktop for Windows
+            
+            ## Installation
+            1. Download the ZIP file
+            2. Extract it
+            3. Run `Stoat.exe` from the extracted folder
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
