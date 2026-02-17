@@ -28,6 +28,7 @@ jobs:
           repository: Trifall/stoat-for-web
           path: client
           fetch-depth: 0
+          submodules: recursive
           token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Check client directory exists
@@ -40,16 +41,17 @@ jobs:
           fi
           echo "client/ directory found"
       
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 10
-          run_install: false
+          cache: 'pnpm'
+          cache-dependency-path: '**/pnpm-lock.yaml'
       
       - name: Setup Mise
         uses: jdx/mise-action@v2
@@ -57,19 +59,6 @@ jobs:
           install: true
           cache: true
           working_directory: client
-      
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-      
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('client/pnpm-lock.yaml', 'pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
       
       - name: Clean old builds
         run: |
@@ -80,25 +69,13 @@ jobs:
       
       - name: Install dependencies (Client)
         working-directory: client
-        run: |
-          # Install all workspace packages
-          pnpm install --frozen-lockfile
-          # Verify workspace packages are recognized
-          pnpm ls --depth=0 || true
+        run: pnpm install --frozen-lockfile
       
-      - name: Build lingui dependencies
+      - name: Build dependencies
         working-directory: client
         run: |
-          # Build lingui packages first (required for lingui:compile)
-          pnpm --filter @lingui-solid/babel-plugin-lingui-macro build
-          pnpm --filter @lingui-solid/babel-plugin-extract-messages build
-      
-      - name: Build other dependencies
-        working-directory: client
-        run: |
-          # Build remaining dependencies
-          pnpm --filter stoat.js build
-          pnpm --filter solid-livekit-components build
+          set -e
+          mise build:deps
       
       - name: Copy audio assets
         run: |
@@ -200,6 +177,7 @@ jobs:
           repository: Trifall/stoat-for-web
           path: client
           fetch-depth: 0
+          submodules: recursive
           token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Check client directory exists
@@ -211,16 +189,17 @@ jobs:
           }
           Write-Host "client/ directory found"
       
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 10
-          run_install: false
+          cache: 'pnpm'
+          cache-dependency-path: '**/pnpm-lock.yaml'
       
       - name: Setup Mise
         uses: jdx/mise-action@v2
@@ -228,20 +207,6 @@ jobs:
           install: true
           cache: true
           working_directory: client
-      
-      - name: Get pnpm store directory
-        shell: pwsh
-        run: |
-          $storePath = pnpm store path --silent
-          "STORE_PATH=$storePath" | Out-File -FilePath $env:GITHUB_ENV -Append
-      
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('client/pnpm-lock.yaml', 'pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
       
       - name: Clean old builds
         shell: pwsh
@@ -253,25 +218,13 @@ jobs:
       
       - name: Install dependencies (Client)
         working-directory: client
-        run: |
-          # Install all workspace packages
-          pnpm install --frozen-lockfile
-          # Verify workspace packages are recognized
-          pnpm ls --depth=0 || true
+        run: pnpm install --frozen-lockfile
       
-      - name: Build lingui dependencies
+      - name: Build dependencies
         working-directory: client
         run: |
-          # Build lingui packages first (required for lingui:compile)
-          pnpm --filter @lingui-solid/babel-plugin-lingui-macro build
-          pnpm --filter @lingui-solid/babel-plugin-extract-messages build
-      
-      - name: Build other dependencies
-        working-directory: client
-        run: |
-          # Build remaining dependencies
-          pnpm --filter stoat.js build
-          pnpm --filter solid-livekit-components build
+          $ErrorActionPreference = 'Stop'
+          mise build:deps
       
       - name: Copy audio assets
         shell: pwsh
