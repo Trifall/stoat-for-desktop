@@ -70,7 +70,8 @@ if (acquiredLock) {
   app.on("window-all-closed", () => {
     cleanupPushToTalk();
     if (process.platform !== "darwin") {
-      app.quit();
+      // Only way I found was to SIGKILL the process since process.exit() and app.exit() didn't work
+      process.kill(process.pid, "SIGKILL");
     }
   });
 
