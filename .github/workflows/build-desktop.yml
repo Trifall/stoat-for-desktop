@@ -117,6 +117,11 @@ jobs:
       - name: Install desktop dependencies
         run: pnpm install --frozen-lockfile
       
+      - name: Install keyspy build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxi-dev
+      
       - name: Clear Vite cache
         run: rm -rf .vite
       
@@ -279,6 +284,9 @@ jobs:
       
       - name: Install desktop dependencies
         run: pnpm install --frozen-lockfile
+      
+      - name: Install MinGW (for keyspy)
+        run: choco install mingw -y
       
       - name: Clear Vite cache
         run: Remove-Item -Recurse -Force .vite -ErrorAction SilentlyContinue

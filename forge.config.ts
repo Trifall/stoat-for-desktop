@@ -143,6 +143,8 @@ const config: ForgeConfig = {
   hooks: {
     prePackage: async (_forgeConfig, platform) => {
       const keyspyPath = path.join(__dirname, "node_modules", "keyspy");
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { execSync } = require("child_process");
       
       if (platform === "win32") {
         console.log("[prePackage] Building for Windows, compiling keyspy WinKeyServer...");
@@ -153,17 +155,22 @@ const config: ForgeConfig = {
         
         fs.mkdirSync(buildDir, { recursive: true });
         
-        // cross-compile Windows binary using mingw
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { execSync } = require("child_process");
         try {
-          execSync(
-            `x86_64-w64-mingw32-g++ -static -static-libgcc -static-libstdc++ -o "${winServerBin}" "${winServerSrc}" -luser32 -lkernel32`,
-            { stdio: "inherit" }
-          );
+          // On Windows, compile natively. On Linux cross-compiling to Windows, use mingw.
+          if (process.platform === "win32") {
+            execSync(
+              `c++ "${winServerSrc}" -o "${winServerBin}" -static`,
+              { stdio: "inherit" }
+            );
+          } else {
+            execSync(
+              `x86_64-w64-mingw32-g++ -static -static-libgcc -static-libstdc++ -o "${winServerBin}" "${winServerSrc}" -luser32 -lkernel32`,
+              { stdio: "inherit" }
+            );
+          }
           console.log("[prePackage] WinKeyServer.exe compiled successfully");
         } catch (err) {
-          console.warn("[prePackage] Failed to cross-compile WinKeyServer, Windows PTT may not work");
+          console.warn("[prePackage] Failed to compile WinKeyServer, Windows PTT may not work");
           console.warn("[prePackage] Error:", err);
         }
       } else if (platform === "linux") {
@@ -175,8 +182,6 @@ const config: ForgeConfig = {
         
         fs.mkdirSync(buildDir, { recursive: true });
         
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { execSync } = require("child_process");
         try {
           execSync(
             `c++ "${x11ServerSrc}" -o "${x11ServerBin}" -lX11 -lXi -static-libgcc -static-libstdc++`,
