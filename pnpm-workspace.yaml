@@ -7,3 +7,6 @@ onlyBuiltDependencies:
   - esbuild
   - register-scheme
   - utf-8-validate
+
+patchedDependencies:
+  cross-zip@4.0.1: patches/cross-zip@4.0.1.patch
