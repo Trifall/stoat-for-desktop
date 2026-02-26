@@ -138,8 +138,11 @@ jobs:
         run: |
           ZIP_FILE=$(ls -t out/make/zip/linux/x64/*.zip 2>/dev/null | head -1)
           if [ -n "$ZIP_FILE" ]; then
-            echo "zip_path=$ZIP_FILE" >> $GITHUB_OUTPUT
-            echo "zip_name=$(basename $ZIP_FILE)" >> $GITHUB_OUTPUT
+            VERSION=${GITHUB_REF_NAME#v}
+            NEW_NAME="Stoat-Desktop-linux-x64-${VERSION}.zip"
+            cp "$ZIP_FILE" "out/make/zip/linux/x64/$NEW_NAME"
+            echo "zip_path=out/make/zip/linux/x64/$NEW_NAME" >> $GITHUB_OUTPUT
+            echo "zip_name=$NEW_NAME" >> $GITHUB_OUTPUT
             echo "Found ZIP: $ZIP_FILE"
           else
             echo "ERROR: ZIP file not found"
@@ -283,8 +286,11 @@ jobs:
         run: |
           $zipFile = Get-ChildItem out/make/zip/win32/x64/*.zip | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           if ($zipFile) {
-            echo "zip_path=$($zipFile.FullName)" >> $env:GITHUB_OUTPUT
-            echo "zip_name=$($zipFile.Name)" >> $env:GITHUB_OUTPUT
+            $version = $env:GITHUB_REF_NAME -replace '^v', ''
+            $newName = "Stoat-Desktop-win32-x64-$version.zip"
+            Copy-Item $zipFile.FullName "out/make/zip/win32/x64/$newName"
+            echo "zip_path=out/make/zip/win32/x64/$newName" >> $env:GITHUB_OUTPUT
+            echo "zip_name=$newName" >> $env:GITHUB_OUTPUT
             echo "Found ZIP: $($zipFile.FullName)"
           } else {
             echo "ERROR: ZIP file not found"
@@ -319,19 +325,40 @@ jobs:
       - name: List artifacts
         run: ls -la artifacts
 
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          CURRENT_TAG=${{ github.ref_name }}
+
+          if [ -n "$PREV_TAG" ]; then
+            CHANGES=$(git log --no-merges --pretty=format:"- %s (%h)" "$PREV_TAG..$CURRENT_TAG" 2>/dev/null || echo "")
+          else
+            CHANGES=$(git log --no-merges --pretty=format:"- %s (%h)" -n 20 2>/dev/null || echo "")
+          fi
+
+          # Build release body with instructions + changelog
+          cat > changelog.txt << 'EOF'
+          ## Downloads
+          - **Windows**: Download the Windows ZIP, extract, and run `Stoat.exe`
+          - **Linux**: Download the Linux ZIP, extract, and run `./stoat-desktop`
+
+          ## Requirements (Linux)
+          - X11 or XWayland for full functionality
+          - libx11, libxtst, libxt, libxinerama packages
+
+          ## Changelog
+          EOF
+          echo "$CHANGES" >> changelog.txt
+          echo "changelog_file=changelog.txt" >> $GITHUB_OUTPUT
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: artifacts/*.zip
           name: Stoat Desktop ${{ github.ref_name }}
-          body: |
-            ## Downloads
-            - **Windows**: Download the Windows ZIP, extract, and run `Stoat.exe`
-            - **Linux**: Download the Linux ZIP, extract, and run `./stoat-desktop`
-
-            ## Requirements (Linux)
-            - X11 or XWayland for full functionality
-            - libx11, libxtst, libxt, libxinerama packages
+          body_path: ${{ steps.changelog.outputs.changelog_file }}
           draft: false
           prerelease: false
         env:
