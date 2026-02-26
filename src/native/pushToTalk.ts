@@ -41,7 +41,12 @@ function pttLog(...args: unknown[]) {
 
 let isPttActive = false;
 let isKeyspyRunning = false;
+let isKeyspyIntentionallyStopped = false;
 let isWindowFocused = false;
+let keyspyRestartAttempts = 0;
+let keyspyRestartTimeout: NodeJS.Timeout | null = null;
+const MAX_KEYSPY_RESTART_ATTEMPTS = 5;
+const KEYSPY_RESTART_DELAY_MS = 2000;
 
 let currentKeybind = "";
 let keybindModifiers = { ctrl: false, shift: false, alt: false, meta: false };
@@ -338,20 +343,22 @@ async function startKeyspy(): Promise<void> {
   try {
     keyboardListenerInstance = new GlobalKeyboardListener();
 
-    // handle unexpected process exit
     if (keyboardListenerInstance.proc) {
-      keyboardListenerInstance.proc.on("exit", (code: number) => {
-        if (isKeyspyRunning) {
-          pttLog(`Keyspy process exited unexpectedly with code ${code}`);
-          keyboardListenerInstance = null;
-          isKeyspyRunning = false;
-          keyspyListener = null;
-        }
+      keyboardListenerInstance.proc.on(
+        "exit",
+        (code: number, signal: string) => {
+          pttLog(`Keyspy process exited with code ${code}, signal: ${signal}`);
+          handleKeyspyCrash("process-exit", code, signal);
+        },
+      );
+
+      keyboardListenerInstance.proc.on("error", (err: Error) => {
+        pttLog(`Keyspy process error: ${err.message}`);
+        handleKeyspyCrash("process-error", -1, err.message);
       });
     }
 
     keyspyListener = (event: any, isDown: Record<string, boolean>) => {
-      // ignore keyspy events when window is focused - before-input-event handles those
       if (isWindowFocused) {
         return false;
       }
@@ -417,10 +424,59 @@ async function startKeyspy(): Promise<void> {
 
     await keyboardListenerInstance.addListener(keyspyListener);
     isKeyspyRunning = true;
+    isKeyspyIntentionallyStopped = false;
+    keyspyRestartAttempts = 0;
     pttLog("✓ Keyspy started successfully");
-  } catch (err) {
-    pttLog("✗ Failed to start keyspy:", err);
+  } catch (err: any) {
+    pttLog("✗ Failed to start keyspy:", err?.message || err);
+    handleKeyspyCrash("start-error", -1, err?.message || String(err));
   }
+}
+
+function handleKeyspyCrash(
+  reason: string,
+  exitCode: number,
+  signalOrError: string,
+): void {
+  if (!isKeyspyRunning) {
+    return;
+  }
+
+  if (isKeyspyIntentionallyStopped) {
+    pttLog("Keyspy stopped intentionally, not restarting");
+    return;
+  }
+
+  pttLog(
+    `Keyspy crashed: ${reason}, code: ${exitCode}, detail: ${signalOrError}`,
+  );
+
+  keyboardListenerInstance = null;
+  isKeyspyRunning = false;
+  keyspyListener = null;
+  keyspyRestartAttempts++;
+
+  if (keyspyRestartAttempts > MAX_KEYSPY_RESTART_ATTEMPTS) {
+    pttLog(
+      `✗ Max restart attempts (${MAX_KEYSPY_RESTART_ATTEMPTS}) reached. Giving up.`,
+    );
+    return;
+  }
+
+  if (keyspyRestartTimeout) {
+    clearTimeout(keyspyRestartTimeout);
+  }
+
+  const delay = KEYSPY_RESTART_DELAY_MS * keyspyRestartAttempts;
+  pttLog(
+    `Attempting to restart keyspy in ${delay}ms (attempt ${keyspyRestartAttempts}/${MAX_KEYSPY_RESTART_ATTEMPTS})...`,
+  );
+
+  keyspyRestartTimeout = setTimeout(() => {
+    if (config.pushToTalk && mainWindow && !mainWindow.isDestroyed()) {
+      startKeyspy();
+    }
+  }, delay);
 }
 
 export async function registerPushToTalkHotkey(): Promise<void> {
@@ -501,13 +557,19 @@ export function unregisterPushToTalkHotkey(): void {
 
   deactivatePtt("unregister");
 
+  if (keyspyRestartTimeout) {
+    clearTimeout(keyspyRestartTimeout);
+    keyspyRestartTimeout = null;
+  }
+  keyspyRestartAttempts = 0;
+
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.off("before-input-event", handleBeforeInputEvent);
     pttLog("Removed before-input-event listener");
   }
 
-  // stop keyspy when PTT is disabled
   if (isKeyspyRunning && keyboardListenerInstance) {
+    isKeyspyIntentionallyStopped = true;
     try {
       keyboardListenerInstance.kill();
       pttLog("Keyspy killed");
