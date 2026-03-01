@@ -42,6 +42,7 @@ function pttLog(...args: unknown[]) {
 let isPttActive = false;
 let isKeyspyRunning = false;
 let isKeyspyIntentionallyStopped = false;
+let isRestarting = false;
 let isWindowFocused = false;
 let keyspyRestartAttempts = 0;
 let keyspyRestartTimeout: NodeJS.Timeout | null = null;
@@ -329,6 +330,9 @@ async function startKeyspy(): Promise<void> {
     return;
   }
 
+  isKeyspyIntentionallyStopped = false;
+  isRestarting = false;
+
   if (!GlobalKeyboardListener) {
     loadKeyspy();
   }
@@ -344,6 +348,16 @@ async function startKeyspy(): Promise<void> {
     keyboardListenerInstance = new GlobalKeyboardListener();
 
     if (keyboardListenerInstance.proc) {
+      keyboardListenerInstance.proc.stdin?.on("error", (err: Error) => {
+        pttLog(`Keyspy stdin error (suppressed): ${err.message}`);
+      });
+      keyboardListenerInstance.proc.stdout?.on("error", (err: Error) => {
+        pttLog(`Keyspy stdout error (suppressed): ${err.message}`);
+      });
+      keyboardListenerInstance.proc.stderr?.on("error", (err: Error) => {
+        pttLog(`Keyspy stderr error (suppressed): ${err.message}`);
+      });
+
       keyboardListenerInstance.proc.on(
         "exit",
         (code: number, signal: string) => {
@@ -438,12 +452,13 @@ function handleKeyspyCrash(
   exitCode: number,
   signalOrError: string,
 ): void {
-  if (!isKeyspyRunning) {
+  if (isKeyspyIntentionallyStopped) {
+    pttLog("Keyspy stopped intentionally, not restarting");
     return;
   }
 
-  if (isKeyspyIntentionallyStopped) {
-    pttLog("Keyspy stopped intentionally, not restarting");
+  if (isRestarting) {
+    pttLog("Already restarting, ignoring duplicate crash event");
     return;
   }
 
@@ -467,14 +482,20 @@ function handleKeyspyCrash(
     clearTimeout(keyspyRestartTimeout);
   }
 
+  isRestarting = true;
   const delay = KEYSPY_RESTART_DELAY_MS * keyspyRestartAttempts;
   pttLog(
     `Attempting to restart keyspy in ${delay}ms (attempt ${keyspyRestartAttempts}/${MAX_KEYSPY_RESTART_ATTEMPTS})...`,
   );
 
-  keyspyRestartTimeout = setTimeout(() => {
+  keyspyRestartTimeout = setTimeout(async () => {
+    isRestarting = false;
     if (config.pushToTalk && mainWindow && !mainWindow.isDestroyed()) {
-      startKeyspy();
+      try {
+        await startKeyspy();
+      } catch (err) {
+        pttLog("Error during keyspy restart:", err);
+      }
     }
   }, delay);
 }
@@ -555,21 +576,33 @@ export async function registerPushToTalkHotkey(): Promise<void> {
 export function unregisterPushToTalkHotkey(): void {
   pttLog("Unregistering PTT hotkey...");
 
-  deactivatePtt("unregister");
+  deactivatePtt("unregister", false);
 
   if (keyspyRestartTimeout) {
     clearTimeout(keyspyRestartTimeout);
     keyspyRestartTimeout = null;
   }
   keyspyRestartAttempts = 0;
+  isRestarting = false;
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.off("before-input-event", handleBeforeInputEvent);
     pttLog("Removed before-input-event listener");
   }
 
-  if (isKeyspyRunning && keyboardListenerInstance) {
+  if (keyboardListenerInstance) {
     isKeyspyIntentionallyStopped = true;
+    isKeyspyRunning = false;
+
+    if (keyspyListener) {
+      try {
+        keyboardListenerInstance.removeListener?.(keyspyListener);
+      } catch {
+        /* ignore */
+      }
+      keyspyListener = null;
+    }
+
     try {
       keyboardListenerInstance.kill();
       pttLog("Keyspy killed");
@@ -577,8 +610,6 @@ export function unregisterPushToTalkHotkey(): void {
       pttLog("Error killing keyspy:", err);
     }
     keyboardListenerInstance = null;
-    isKeyspyRunning = false;
-    keyspyListener = null;
   }
 
   heldKeys.clear();
