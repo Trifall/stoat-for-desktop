@@ -310,6 +310,11 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.event.inputs.version, 'v')
 
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # required for git log + tag history
+
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
         with:
