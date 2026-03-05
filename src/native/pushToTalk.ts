@@ -476,6 +476,13 @@ function handleKeyspyCrash(
     `Keyspy crashed: ${reason}, code: ${exitCode}, detail: ${signalOrError}`,
   );
 
+  heldKeys.clear();
+  pttActivationKey = null;
+  if (isPttActive) {
+    isPttActive = false;
+    sendPttState(false);
+  }
+
   keyboardListenerInstance = null;
   isKeyspyRunning = false;
   keyspyListener = null;
