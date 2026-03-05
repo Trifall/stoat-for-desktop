@@ -571,9 +571,9 @@ export async function registerPushToTalkHotkey(): Promise<void> {
       if (!isWindowFocused) {
         pttLog("Window focused - keyspy events will be ignored");
         isWindowFocused = true;
-        if (pttActivationKey) {
-          heldKeys.clear();
-          pttActivationKey = null;
+        heldKeys.clear();
+        pttActivationKey = null;
+        if (config.pushToTalkMode === "hold") {
           deactivatePtt("window-focused", false);
         }
       }
@@ -585,7 +585,9 @@ export async function registerPushToTalkHotkey(): Promise<void> {
         isWindowFocused = false;
         heldKeys.clear();
         pttActivationKey = null;
-        deactivatePtt("window-blurred", false);
+        if (config.pushToTalkMode === "hold") {
+          deactivatePtt("window-blurred", false);
+        }
       }
     };
 
