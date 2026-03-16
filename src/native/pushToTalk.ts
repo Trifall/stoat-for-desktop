@@ -167,8 +167,36 @@ function hasKeybindModifiers(): boolean {
   );
 }
 
+/**
+ * Map Electron input.code to the character it produces (US layout).
+ * Used as fallback when input.key doesn't match on Windows OEM keys.
+ */
+const codeToCharMap: Record<string, string> = {
+  Semicolon: ";",
+  Slash: "/",
+  Backquote: "`",
+  BracketLeft: "[",
+  Backslash: "\\",
+  BracketRight: "]",
+  Quote: "'",
+  Comma: ",",
+  Period: ".",
+  Minus: "-",
+  Equal: "=",
+  Space: " ",
+};
+
 function matchesKeybind(input: Electron.Input, checkModifiers = true): boolean {
-  const keyMatches = input.key.toLowerCase() === currentKeybind.toLowerCase();
+  let keyMatches = input.key.toLowerCase() === currentKeybind.toLowerCase();
+
+  // Fallback: match by input.code for special keys (Windows OEM key workaround)
+  if (!keyMatches && input.code) {
+    const charFromCode = codeToCharMap[input.code];
+    if (charFromCode) {
+      keyMatches = charFromCode === currentKeybind.toLowerCase();
+    }
+  }
+
   if (!keyMatches) return false;
 
   if (!checkModifiers) return true;
@@ -223,6 +251,13 @@ function keyspyKeyToAccelerator(keyspyName: string): string {
     equal: "=",
     equals: "=",
     space: " ",
+
+    // Windows keyspy standardName values (have spaces)
+    "square bracket open": "[",
+    "square bracket close": "]",
+    "forward slash": "/",
+    section: "`",
+    backtick: "`",
   };
 
   return keyMapping[key] || key;
