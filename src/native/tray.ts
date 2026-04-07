@@ -42,18 +42,6 @@ export function updateTrayMenu() {
     Menu.buildFromTemplate([
       { label: "Stoat for Desktop", type: "normal", enabled: false },
       {
-        label: "Version",
-        type: "submenu",
-        submenu: Menu.buildFromTemplate([
-          {
-            label: version,
-            type: "normal",
-            enabled: false,
-          },
-        ]),
-      },
-      { type: "separator" },
-      {
         label: mainWindow.isVisible() ? "Hide App" : "Show App",
         type: "normal",
         click() {
@@ -62,6 +50,13 @@ export function updateTrayMenu() {
           } else {
             mainWindow.show();
           }
+        },
+      },
+      {
+        label: "Reload",
+        type: "normal",
+        click() {
+          mainWindow.webContents.reload();
         },
       },
       {
