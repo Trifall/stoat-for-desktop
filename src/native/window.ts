@@ -87,6 +87,8 @@ export function initBuildUrl() {
 }
 
 function setupLocalProtocol() {
+  const fs = require("fs");
+
   // Handle stoat:// protocol
   protocol.handle("stoat", (request) => {
     const url = new URL(request.url);
@@ -113,6 +115,12 @@ function setupLocalProtocol() {
     if (!filePath.startsWith(localWebDir)) {
       console.error("[Protocol] Blocked access outside web-dist:", pathname);
       return new Response("Forbidden", { status: 403 });
+    }
+
+    // SPA fallback: if the file doesn't exist, serve index.html so
+    // client-side routing can handle the path (e.g. /server/.../channel/...)
+    if (!fs.existsSync(filePath)) {
+      return net.fetch("file://" + join(localWebDir, "index.html"));
     }
 
     // Serve the file
