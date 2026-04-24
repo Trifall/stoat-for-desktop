@@ -573,7 +573,10 @@ function handleKeyspyCrash(
 
   heldKeys.clear();
   pttActivationKey = null;
-  if (isPttActive) {
+
+  // hold mode should fail closed. toggle mode should be latched.
+  // this handles if keyspy crashes, the user should retain the most likely intended state.
+  if (config.pushToTalkMode === "hold" && isPttActive) {
     isPttActive = false;
     sendPttState(false);
   }
@@ -627,7 +630,7 @@ export async function registerPushToTalkHotkey(): Promise<void> {
   const accelerator = config.pushToTalkKeybind || "Shift+Space";
   pttLog("Keybind:", accelerator, "Mode:", config.pushToTalkMode);
 
-  unregisterPushToTalkHotkey();
+  unregisterPushToTalkHotkey({ resetState: config.pushToTalkMode === "hold" });
 
   const parsed = parseAccelerator(accelerator);
   currentKeybind = parsed.key;
@@ -698,15 +701,28 @@ export async function registerPushToTalkHotkey(): Promise<void> {
     mainWindow.on("blur", blurHandler);
   }
 
-  isPttActive = false;
-  sendPttState(false);
+  if (config.pushToTalkMode === "hold") {
+    isPttActive = false;
+    sendPttState(false);
+  } else {
+    pttLog("Toggle mode preserving PTT state:", isPttActive ? "ON" : "OFF");
+  }
   pttLog("✓ PTT initialized with keyspy");
 }
 
-export function unregisterPushToTalkHotkey(): void {
+export function unregisterPushToTalkHotkey(
+  options: { resetState?: boolean } = {},
+): void {
   pttLog("Unregistering PTT hotkey...");
 
-  deactivatePtt("unregister", false);
+  const resetState = options.resetState ?? true;
+
+  if (resetState) {
+    deactivatePtt("unregister", false);
+  } else if (releaseDelayTimeout) {
+    clearTimeout(releaseDelayTimeout);
+    releaseDelayTimeout = null;
+  }
 
   stopKeyspyWatchdog();
 
