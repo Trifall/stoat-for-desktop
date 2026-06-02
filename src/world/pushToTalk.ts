@@ -30,8 +30,11 @@ let parsedKeybinds: ParsedKeybind[] = [
   { key: "v", ctrl: false, shift: false, alt: false, meta: false },
 ];
 
+const isDev = import.meta.env.DEV;
 function pttLog(...args: unknown[]) {
-  console.log("[PTT-Renderer]", ...args);
+  if (isDev) {
+    console.log("[PTT-Renderer]", ...args);
+  }
 }
 
 function parseAccelerator(accelerator: string): ParsedKeybind {
