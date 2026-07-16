@@ -276,5 +276,6 @@ contextBridge.exposeInMainWorld("pushToTalk", {
 // Request initial config from main process
 pttLog("Requesting initial PTT config from main...");
 ipcRenderer.send("push-to-talk-request-config");
+ipcRenderer.send("push-to-talk-request-state");
 
 pttLog("Preload script loaded with DOM interception for PTT");

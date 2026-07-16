@@ -6,7 +6,11 @@ import started from "electron-squirrel-startup";
 import { autoLaunch } from "./native/autoLaunch";
 import { config } from "./native/config";
 import { initDiscordRpc } from "./native/discordRpc";
-import { cleanupPushToTalk, initPushToTalk } from "./native/pushToTalk";
+import {
+  cleanupPushToTalk,
+  initPushToTalk,
+  registerPushToTalkHotkey,
+} from "./native/pushToTalk";
 import { initTray } from "./native/tray";
 import {
   BUILD_URL,
@@ -93,6 +97,14 @@ if (acquiredLock) {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow();
+      if (config.pushToTalk) {
+        registerPushToTalkHotkey().catch((error) => {
+          console.error(
+            "Failed to restore PTT after window recreation:",
+            error,
+          );
+        });
+      }
     } else {
       mainWindow.show();
       mainWindow.focus();

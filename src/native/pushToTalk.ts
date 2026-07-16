@@ -835,8 +835,6 @@ export function initPushToTalk(): void {
     ) => {
       pttLog("Received settings update from renderer:", settings);
 
-      const wasEnabled = config.pushToTalk;
-
       if (typeof settings.enabled === "boolean") {
         config.pushToTalk = settings.enabled;
       }
@@ -850,16 +848,6 @@ export function initPushToTalk(): void {
         config.pushToTalkReleaseDelay = settings.releaseDelay;
       }
 
-      if (typeof settings.enabled === "boolean") {
-        if (settings.enabled && !wasEnabled) {
-          pttLog("PTT enabled, registering hotkey...");
-          registerPushToTalkHotkey();
-        } else if (!settings.enabled && wasEnabled) {
-          pttLog("PTT disabled, unregistering hotkey...");
-          unregisterPushToTalkHotkey();
-        }
-      }
-
       sendPttConfig();
 
       pttLog("Config updated and saved");
@@ -869,6 +857,11 @@ export function initPushToTalk(): void {
   ipcMain.on("push-to-talk-request-config", () => {
     pttLog("Renderer requested PTT config, sending...");
     sendPttConfig();
+  });
+
+  ipcMain.on("push-to-talk-request-state", () => {
+    pttLog("Renderer requested PTT state, sending...");
+    sendPttState(isPttActive);
   });
 
   if (config.pushToTalk) {
