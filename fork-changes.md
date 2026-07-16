@@ -8,7 +8,7 @@ It is intended as a reference for both humans and AI agents working on the fork 
 - **Upstream repo:** https://github.com/stoatchat/for-desktop (remote name `upstream`)
 - **Paired web client fork:** https://github.com/Trifall/stoat-for-web (also needed for PTT to be visible in the UI — see §2)
 
-> **If you are an agent doing an upstream merge:** every section tagged **KEEP ON MERGE** below must be preserved through the merge. The merge commit on `main` is the canonical record of what was integrated; do not squash it away. See §10 for a merge checklist.
+> **If you are an agent doing an upstream merge:** every section tagged **KEEP ON MERGE** below must be preserved through the merge. The merge commit on `main` is the canonical record of what was integrated; do not squash it away. If upstream and the fork make materially different changes to the same subsystem, stop and follow the user-approval process in §10 before resolving that area. See §11 for the merge checklist.
 
 ---
 
@@ -23,8 +23,9 @@ It is intended as a reference for both humans and AI agents working on the fork 
 7. [Cross-zip Patch](#7-cross-zip-patch)
 8. [Config Schema Extensions](#8-config-schema-extensions)
 9. [Files Deleted from Upstream](#9-files-deleted-from-upstream)
-10. [Upstream Merge Checklist](#10-upstream-merge-checklist)
-11. [Known Issues / Gotchas](#11-known-issues--gotchas)
+10. [Material Conflict Escalation and User Approval](#10-material-conflict-escalation-and-user-approval)
+11. [Upstream Merge Checklist](#11-upstream-merge-checklist)
+12. [Known Issues / Gotchas](#12-known-issues--gotchas)
 
 ---
 
@@ -435,13 +436,84 @@ Also `strings.ts` is an empty file at the repo root (kept around for historical 
 
 ---
 
-## 10. Upstream Merge Checklist
+## 10. Material Conflict Escalation and User Approval
+
+This section defines how a migration or merge agent must handle conflicts where upstream and the fork have both made important changes to the same subsystem. The goal is to prevent a mechanically valid conflict resolution from silently removing fork behavior, rejecting valuable upstream work, or creating an integration whose product behavior the user did not approve.
+
+### 10.1 When the agent must stop and ask
+
+Do **not** resolve a conflict autonomously when the choice could materially change functionality, architecture, security, packaging, compatibility, persisted data, user-visible behavior, or the maintenance strategy of the fork. Pause before editing that conflict area and ask the user how to proceed.
+
+Examples that require approval include:
+
+- Upstream replaces or substantially redesigns a subsystem extended by this fork, such as window creation, display-media capture, configuration, preload bridges, IPC, PTT, local asset serving, packaging, or CI/CD.
+- Preserving the fork implementation would require discarding an important upstream feature, security fix, migration, API change, or architectural change.
+- Adopting upstream would remove, weaken, or substantially rewrite a feature tagged **KEEP ON MERGE**.
+- Both implementations are individually valid but cannot coexist without choosing product behavior, such as audio capture semantics, navigation policy, startup behavior, update behavior, release strategy, or platform support.
+- A dependency, Electron API, native module, or build-tool upgrade makes an existing fork implementation obsolete, unsupported, or unsafe.
+- The apparent resolution requires compatibility code, data migration, new dependencies, significant refactoring, or changes in the paired `Trifall/stoat-for-web` repository.
+- Tests and documentation do not establish the intended behavior well enough to choose safely.
+
+Routine conflicts may still be resolved without interruption when the correct integration is unambiguous and behavior-preserving. Examples include formatting-only conflicts, lockfile regeneration after an already-approved dependency merge, combining non-overlapping imports, accepting an upstream version bump while retaining required fork dependencies, or preserving an explicitly documented upstream-file deletion.
+
+### 10.2 Required analysis before asking
+
+For **each affected subsystem**, investigate both sides before asking the user. Do not present a generic "which side should I keep?" question. Provide:
+
+1. **Conflict area:** the subsystem and exact files/functions involved.
+2. **Fork behavior:** what the fork currently does, why it exists, and which other files or repositories depend on it.
+3. **Upstream behavior:** what upstream changed, what problem it solves, and whether it replaces or merely overlaps the fork implementation.
+4. **Compatibility assessment:** what can coexist, what cannot, and any API, lifecycle, security, packaging, persistence, or platform implications.
+5. **Recommended integration:** the preferred approach and why it best preserves the fork while incorporating upstream improvements.
+6. **Alternatives:** concise viable options, including the effect and risk of each option.
+7. **Validation plan:** the tests, builds, or manual checks that will verify the selected approach.
+
+The recommendation should normally be **integrate both implementations**, adapting the fork to the new upstream architecture rather than blindly choosing `ours` or `theirs`. Recommend dropping fork behavior only when it is genuinely obsolete, duplicated by upstream, unsafe, or explicitly no longer wanted.
+
+### 10.3 Ask separately by decision area
+
+Ask for a decision on each materially different area. Do not bundle unrelated choices into one broad approval request. For example, screen-sharing integration, PTT lifecycle changes, local protocol changes, and CI/release changes should be separate decisions even if they appear in the same merge.
+
+Use a structure similar to:
+
+```text
+Conflict area: Screen-sharing audio in src/native/window.ts
+
+Fork behavior: ...
+Upstream change: ...
+Compatibility/risk: ...
+
+Recommended: Integrate upstream's picker while preserving the fork's local
+protocol and navigation behavior, because ...
+
+Options:
+1. Integrate both (recommended): ...
+2. Prefer upstream: ...
+3. Preserve the fork implementation: ...
+
+Which approach should I apply for this area?
+```
+
+When the interaction supports selectable choices, put the recommended option first and clearly label it **Recommended**. Allow the user to provide a custom response instead of forcing one of the listed options.
+
+### 10.4 State management while waiting
+
+- Keep the repository in its current merge state while waiting for the answer; do not abort, reset, commit, or push unless the user asks.
+- It is acceptable to resolve independent, routine conflicts while a material decision is pending, but do not edit the disputed area in a way that prejudges the user's choice.
+- Record the user's decision and apply it only to the corresponding area. If implementation reveals a materially different tradeoff from the one approved, stop and ask again.
+- After all material decisions are approved and implemented, summarize how each area was resolved before committing.
+- Never interpret silence, an unrelated response, or general permission to "merge upstream" as approval to remove a documented fork feature.
+
+---
+
+## 11. Upstream Merge Checklist
 
 Use this whenever merging `upstream/main` into `main`. Past merges have historically lost one or more of the items below.
 
 1. **Fetch upstream:** `git fetch upstream`
 2. **Start a real merge (not a cherry-pick):** `git merge upstream/main --no-ff --no-commit` — preserves upstream history and avoids the "x commits behind" indicator.
-3. **Expected conflicts and how to resolve them:**
+3. **Classify conflicts before resolving them:** compare both sides and §2–§9 of this document. Resolve routine, behavior-preserving conflicts directly. For every material behavioral or architectural conflict, follow §10 and obtain a separate user decision for that area before editing it.
+4. **Expected routine conflicts and their usual resolutions:** these instructions apply only while the underlying behavior still matches this document. If upstream has substantially redesigned one of these areas, treat it as a material conflict under §10 instead of applying this recipe blindly.
    - `.github/workflows/release-webhook.yml` and `.github/workflows/validate-pr-title.yml` (modify/delete) → `git rm` them (keep our deletion). The fork does not use release-please or the PR title validator.
    - `package.json`:
      - Keep the fork's `scripts.start:x11`, `install:flatpak`, `run:flatpak`, `run:nix`.
@@ -461,19 +533,20 @@ Use this whenever merging `upstream/main` into `main`. Past merges have historic
      - `extraResource: ["web-dist"]` preserved.
      - `prePackage` / `postPackage` hooks preserved.
      - New upstream flatpak/metainfo changes (e.g. `runtimeVersion`, zypak tag, screenshot URL) adopted.
-4. **After resolving:** `git add -A`, `git commit` (uses `.git/MERGE_MSG`).
-5. **Sanity checks before pushing:**
+5. **Review approved decisions:** before staging, summarize each material area, the user's selected approach, and how the implementation reflects it. Ask again if the implemented tradeoff differs materially from what was approved.
+6. **After resolving:** `git add -A`, `git commit` (uses `.git/MERGE_MSG`).
+7. **Sanity checks before pushing:**
    - `grep -r '<<<<<<<' .` returns nothing.
    - `npx tsc --noEmit` — expect only pre-existing `node_modules/type-fest` errors (not source errors). The fork runs TypeScript 4.5.4 — don't try to "fix" the type-fest errors.
    - `pnpm package` succeeds locally (or at least `npx tsc --noEmit` + a `pnpm install`).
    - `pnpm lint` — pre-existing errors are expected; the merge must not **add** any.
-6. **Commit message:** keep the auto-generated `Merge remote-tracking branch 'upstream/main'`. Edit only to add a one-line summary of conflict resolutions if helpful.
-7. **Push:** `git push origin main`. The merge commit keeps the branch in sync with `upstream/main` (no "x commits behind" on the fork page).
-8. **PR cleanup:** if the merge was triggered by a PR on the fork, GitHub usually auto-closes it once `main` advances past the head branch. Otherwise close manually.
+8. **Commit message:** keep the auto-generated `Merge remote-tracking branch 'upstream/main'`. Edit only to add a one-line summary of conflict resolutions if helpful.
+9. **Push:** `git push origin main`. The merge commit keeps the branch in sync with `upstream/main` (no "x commits behind" on the fork page).
+10. **PR cleanup:** if the merge was triggered by a PR on the fork, GitHub usually auto-closes it once `main` advances past the head branch. Otherwise close manually.
 
 ---
 
-## 11. Known Issues / Gotchas
+## 12. Known Issues / Gotchas
 
 Things that look like bugs but are actually load-bearing:
 
