@@ -510,7 +510,27 @@ When the interaction supports selectable choices, put the recommended option fir
 
 Use this whenever merging `upstream/main` into `main`. Past merges have historically lost one or more of the items below.
 
-1. **Fetch upstream:** `git fetch upstream`
+### Distinguish an upstream merge from local branch reconciliation
+
+Do not start another upstream merge merely because local `main` is behind `origin/main`. A common situation is:
+
+- GitHub already merged current upstream into fork `origin/main` with a real merge commit.
+- Local `main` still has unpublished fork-only commits based on the previous fork tip.
+- Local `main` is therefore both ahead of and behind `origin/main`, even though the GitHub fork is already 0 commits behind upstream.
+
+In that specific case, rebasing the **unpublished local fork commits** onto `origin/main` is appropriate and does not replace or rewrite the upstream merge already present on the remote:
+
+```bash
+git fetch --all --prune
+git merge-base --is-ancestor upstream/main origin/main
+git branch backup/main-pre-reconcile-YYYYMMDD main
+git rebase origin/main
+git range-diff <old-base>..backup/main-pre-reconcile-YYYYMMDD origin/main..main
+```
+
+Review every skipped commit. Git may skip a local patch when upstream independently landed an equivalent fix; compare both diffs before accepting the skip. Push normally after verification; never force-push. Do **not** use this exception to import upstream by rebase, rebase commits already shared on `origin/main`, or bypass the required upstream merge commit. If `origin/main` does not contain the upstream tip, follow the real merge process below instead.
+
+1. **Fetch both remotes and inspect divergence:** `git fetch --all --prune`, then check `git status --short --branch`, `git rev-list --left-right --count main...origin/main`, and `git rev-list --left-right --count main...upstream/main` before deciding whether this is an upstream merge or local branch reconciliation.
 2. **Start a real merge (not a cherry-pick):** `git merge upstream/main --no-ff --no-commit` — preserves upstream history and avoids the "x commits behind" indicator.
 3. **Classify conflicts before resolving them:** compare both sides and §2–§9 of this document. Resolve routine, behavior-preserving conflicts directly. For every material behavioral or architectural conflict, follow §10 and obtain a separate user decision for that area before editing it.
 4. **Expected routine conflicts and their usual resolutions:** these instructions apply only while the underlying behavior still matches this document. If upstream has substantially redesigned one of these areas, treat it as a material conflict under §10 instead of applying this recipe blindly.
@@ -537,12 +557,13 @@ Use this whenever merging `upstream/main` into `main`. Past merges have historic
 6. **After resolving:** `git add -A`, `git commit` (uses `.git/MERGE_MSG`).
 7. **Sanity checks before pushing:**
    - `grep -r '<<<<<<<' .` returns nothing.
-   - `npx tsc --noEmit` — expect only pre-existing `node_modules/type-fest` errors (not source errors). The fork runs TypeScript 4.5.4 — don't try to "fix" the type-fest errors.
+   - `npx tsc --noEmit` — expect pre-existing parser errors under `node_modules/type-fest` and `node_modules/@types/node`, but no errors in `src/`. The fork runs TypeScript 4.5.4 — don't try to "fix" dependency declarations in `node_modules`.
    - `pnpm package` succeeds locally (or at least `npx tsc --noEmit` + a `pnpm install`).
    - `pnpm lint` — pre-existing errors are expected; the merge must not **add** any.
 8. **Commit message:** keep the auto-generated `Merge remote-tracking branch 'upstream/main'`. Edit only to add a one-line summary of conflict resolutions if helpful.
-9. **Push:** `git push origin main`. The merge commit keeps the branch in sync with `upstream/main` (no "x commits behind" on the fork page).
+9. **Fetch immediately before pushing:** fetch `origin` and `upstream` again. Confirm both `git merge-base --is-ancestor origin/main main` and `git merge-base --is-ancestor upstream/main main` succeed, then `git push origin main`. The merge commit keeps the branch in sync with `upstream/main` (no "x commits behind" on the fork page).
 10. **PR cleanup:** if the merge was triggered by a PR on the fork, GitHub usually auto-closes it once `main` advances past the head branch. Otherwise close manually.
+11. **Verify GitHub's comparison:** local refs are not the final authority. Run `gh api repos/stoatchat/for-desktop/compare/main...Trifall:main --jq '{status: .status, ahead_by: .ahead_by, behind_by: .behind_by}'` and require `behind_by: 0`.
 
 ---
 
@@ -553,8 +574,8 @@ Things that look like bugs but are actually load-bearing:
 - **`src/native/badges.ts` is never imported by `main.ts`.** The `ipcMain.on("setBadgeCount", ...)` listener it registers never fires; `window.native.setBadgeCount()` calls from the renderer are dropped silently. This is a **pre-existing fork condition**, *not* a merge regression. Fixing it is a separate task — but do not be alarmed during merges if a "missing setBadgeCount handler" appears in logs.
 - **`tsconfig.json` has `types: ["electron-vite/node"]` but `electron-vite` isn't a direct dep** — works because the package is hoisted transitively. Pre-existing, presumably stale, harmless. Leave alone.
 - **`tsconfig.json#outDir: "dist"` is unused** — the real build output is `.vite/build/` per `package.json#main`. Pre-existing.
-- **TypeScript 4.5.4 produces type errors against `node_modules/type-fest`** — pre-existing; the `type-fest` version that comes down with `electron-store@10` ships types TS 4.5 can't parse. These errors come from `node_modules` and don't fail the build. Don't try to fix them by editing `node_modules` — pin the offending types or wait until a TypeScript upgrade (which itself is a non-trivial migration; the codebase uses syntax TS 4.5 supports).
-- **Six pre-existing ESLint errors / three warnings on `main`** — verified to exist both before and after the latest merge. The merge must not introduce new ones, but it's fine for `pnpm lint` to exit non-zero.
+- **TypeScript 4.5.4 produces parser errors under `node_modules/type-fest` and `node_modules/@types/node`** — pre-existing dependency declarations use syntax this compiler cannot parse. These errors come from `node_modules`; there should still be no errors in `src/`. Don't edit `node_modules` to suppress them — pin compatible dependency types or handle a TypeScript upgrade as a separate migration.
+- **Six pre-existing ESLint errors / four warnings on `main` after upstream 1.4.2** — the extra warning is the unused `autoLaunch` import left when upstream stopped enabling autostart on first launch. The merge must not introduce additional problems, but it is fine for `pnpm lint` to exit non-zero. Compare counts and paths against the pre-merge tip rather than treating a non-zero exit alone as a regression.
 - **`start:x11` is required for Linux PTT** — under native Wayland, keyspy can't grab keys. `--ozone-platform=x11` forces XWayland on Linux. `SETUP_GUIDE.md` documents this.
 - **`web-dist/` is intentionally git-ignored** — don't commit it. The CI workflow populates it from the web client build.
 - **`--no-sandbox` is required** — it's in `start` and `start:x11` for a reason; the app can't run on Linux as a regular user otherwise.
@@ -564,4 +585,4 @@ Things that look like bugs but are actually load-bearing:
 
 ---
 
-*Last updated: after the merge of upstream PR #207 (Electron 38→40 + screen picker) into fork `main`.*
+*Last updated: after syncing upstream 1.4.2 and rebasing unpublished PTT lifecycle fixes onto the fork's existing upstream merge.*
