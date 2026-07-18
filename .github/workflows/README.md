@@ -141,6 +141,11 @@ The workflow uses the web client at `Trifall/stoat-for-web`. If you fork the cli
 ### Build Fails: "mise not found"
 The `jdx/mise-action` should install mise automatically. If it fails, check that your mise config is valid in `client/.mise/config.toml`.
 
+### Windows Build Fails: "node is not recognized" inside a mise task
+The client mise config installs its own Node and pnpm versions. On Windows, these commands depend on `mise-shim.exe`; keep `jdx/mise-action` on v4 or newer so the action installs the Windows shim alongside mise. The workflow prints the resolved `node`, Node version, pnpm version, and mise version before `mise build:deps` to make shim failures explicit.
+
+Do not rebuild `$env:Path` from only the machine and user environment variables. GitHub Actions adds setup-node, pnpm, and mise paths through `GITHUB_PATH`; replacing PATH that way discards those job-specific entries.
+
 ### Build Fails: "pnpm not found"
 The `pnpm/action-setup` installs pnpm. Make sure your `packageManager` field in `package.json` is set correctly.
 
