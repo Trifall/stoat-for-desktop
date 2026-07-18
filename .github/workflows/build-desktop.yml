@@ -237,7 +237,12 @@ jobs:
           node --version
           pnpm --version
           mise --version
-          mise build:deps
+          # Run the underlying tasks directly. On Windows, mise's nested task
+          # process can lose Node from PATH even though this shell resolves it.
+          pnpm --filter stoat.js build
+          pnpm --filter solid-livekit-components build
+          pnpm --filter @lingui-solid/babel-plugin-lingui-macro build
+          pnpm --filter @lingui-solid/babel-plugin-extract-messages build
 
       - name: Copy audio assets
         shell: pwsh
@@ -255,12 +260,14 @@ jobs:
         working-directory: client
         run: |
           # Compile lingui messages after lingui packages are built
-          mise lingui:extract
-          mise lingui:compile
+          pnpm --filter client exec lingui extract
+          pnpm --filter client exec lingui compile --typescript
 
       - name: Build web client
         working-directory: client
-        run: mise build
+        run: |
+          pnpm --filter client exec node scripts/copyAssets.mjs
+          pnpm --filter client exec vite build
 
       - name: Copy web assets to desktop
         shell: pwsh

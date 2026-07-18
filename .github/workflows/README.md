@@ -142,9 +142,11 @@ The workflow uses the web client at `Trifall/stoat-for-web`. If you fork the cli
 The `jdx/mise-action` should install mise automatically. If it fails, check that your mise config is valid in `client/.mise/config.toml`.
 
 ### Windows Build Fails: "node is not recognized" inside a mise task
-The client mise config installs its own Node and pnpm versions. On Windows, these commands depend on `mise-shim.exe`; keep `jdx/mise-action` on v4 or newer so the action installs the Windows shim alongside mise. The workflow prints the resolved `node`, Node version, pnpm version, and mise version before `mise build:deps` to make shim failures explicit.
+The client mise config installs its own Node and pnpm versions. Keep `jdx/mise-action` on v4 or newer so the action installs the Windows shim alongside mise. The workflow prints the resolved `node`, Node version, pnpm version, and mise version before building dependencies.
 
-Do not rebuild `$env:Path` from only the machine and user environment variables. GitHub Actions adds setup-node, pnpm, and mise paths through `GITHUB_PATH`; replacing PATH that way discards those job-specific entries.
+Mise 2026.7.7 on Windows can resolve Node correctly in PowerShell but lose it inside the nested process used by `mise build:deps`, causing pnpm package scripts such as `tsc`, `tsup`, and `unbuild` to report that Node is unavailable. The Windows job therefore runs the same underlying pnpm commands directly for dependency builds, translations, asset setup, and the Vite build. Keep those commands synchronized with the corresponding tasks under `client/.mise/tasks/`. Linux continues using mise tasks directly.
+
+Do not rebuild `$env:Path` from only the machine and user environment variables. GitHub Actions adds setup-node, pnpm, and mise paths through `GITHUB_PATH`; replacing PATH that way discards those job-specific entries and does not fix the nested-task boundary.
 
 ### Build Fails: "pnpm not found"
 The `pnpm/action-setup` installs pnpm. Make sure your `packageManager` field in `package.json` is set correctly.

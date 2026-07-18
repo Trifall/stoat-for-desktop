@@ -319,7 +319,7 @@ All five are **deleted** in the fork (we don't use release-please, git-town, or 
 - The zip file naming (`Stoat-Desktop-{linux,win32}-x64-<version>.zip`) is enforced by the "Find ZIP" steps — changing the format means changing those steps and the README.
 - Both build jobs assume `pnpm install --frozen-lockfile` — keep `pnpm-lock.yaml` in sync with `package.json` when changing deps.
 - The keyspy build deps install step is version-aware enough to not break if upstream bumps Electron. It installs system packages only, no version pinning of pnpm/electron.
-- Keep `jdx/mise-action` on v4 or newer. Current client mise installs Node and pnpm from `client/.mise/config.toml`; on Windows, mise tasks require the action's `mise-shim.exe` setup. The old v2 action could install the tools successfully and still make child package scripts fail with `'node' is not recognized`. Do not "fix" this by reconstructing PATH from machine/user environment variables because that drops paths GitHub added through `GITHUB_PATH`.
+- Keep `jdx/mise-action` on v4 or newer. Current client mise installs Node and pnpm from `client/.mise/config.toml`; on Windows, these tools require the action's `mise-shim.exe` setup. Mise 2026.7.7 can still lose Node at its nested Windows task-process boundary even while PowerShell resolves Node correctly, so the Windows job expands the relevant `client/.mise/tasks/` operations into direct pnpm commands. Keep those commands synchronized with the client tasks. Do not "fix" this by reconstructing PATH from machine/user environment variables because that drops paths GitHub added through `GITHUB_PATH`.
 
 ### 5.4 Why the upstream workflows were dropped
 
