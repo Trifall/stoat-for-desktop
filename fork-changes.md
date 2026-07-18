@@ -293,7 +293,7 @@ All five are **deleted** in the fork (we don't use release-please, git-town, or 
 
 ### 5.2 What was added
 
-- `.github/workflows/build-desktop.yml` (373 lines) — a single workflow named **"Build Desktop Release"** that:
+- `.github/workflows/build-desktop.yml` — a single workflow named **"Build Desktop Release"** that:
   - Triggers on `push` of any `v*` tag, or via `workflow_dispatch` with a version input.
   - Runs two build jobs:
     - **`build-linux`** on `ubuntu-latest` → produces `out/make/zip/linux/x64/Stoat-Desktop-linux-x64-<version>.zip`.
@@ -302,16 +302,16 @@ All five are **deleted** in the fork (we don't use release-please, git-town, or 
     1. Checks out the desktop repo (this repo) with `fetch-depth: 0`.
     2. Pulls the `assets` submodule with `git submodule update --init assets`.
     3. Checks out `Trifall/stoat-for-web` into `client/` (using `secrets.GITHUB_TOKEN`). The step is gated by `if: ${{ !env.ACT }}` so local `act` runs can supply their own `client/` directory.
-    4. Sets up `pnpm`, Node 20, and `mise` (pointed at `client/.mise`).
-    5. Builds the web client via `mise build:deps`, audio-asset copy, `mise lingui:extract` / `lingui:compile`, `mise build`.
+    4. Sets up `pnpm`, Node 24 as the Actions bootstrap runtime, and `mise` (pointed at `client/.mise`, whose config controls the client task runtime).
+    5. Builds the web client through mise tasks on Linux and equivalent direct pnpm commands on Windows, with audio-asset setup and Lingui extraction/compilation on both platforms.
     6. Copies `client/packages/client/dist/*` into `web-dist/`.
     7. Installs **desktop** deps with `pnpm install --frozen-lockfile`.
     8. Installs platform build deps (Linux: `libx11-dev libxi-dev`; Windows: `mingw` via chocolatey) — needed by the keyspy `prePackage` hook.
     9. Clears the Vite cache (`.vite`).
     10. Runs `pnpm package` then `pnpm make --platform=<platform> --targets=@electron-forge/maker-zip`.
     11. Finds the resulting zip, renames it with the version, uploads as a workflow artifact.
-  - **`create-release`** job (only on tag/manual-with-v-prefix) depends on both build jobs, downloads both artifacts, generates a changelog from `git log` between the current and previous `v*` tag, and creates a GitHub Release with `softprops/action-gh-release@v1` attaching both zips.
-- `.github/workflows/README.md` (213 lines) — documentation for the workflow, including triggering, customization, `act`-based local testing, and required secrets.
+- **`create-release`** job (only on tag/manual-with-v-prefix) depends on both build jobs, downloads both artifacts, generates a changelog from `git log` between the current and previous `v*` tag, and creates a GitHub Release with `softprops/action-gh-release@v3` attaching both zips.
+- `.github/workflows/README.md` — documentation for the workflow, including triggering, customization, `act`-based local testing, and required secrets.
 
 ### 5.3 Important invariants
 
@@ -320,6 +320,7 @@ All five are **deleted** in the fork (we don't use release-please, git-town, or 
 - Both build jobs assume `pnpm install --frozen-lockfile` — keep `pnpm-lock.yaml` in sync with `package.json` when changing deps.
 - The keyspy build deps install step is version-aware enough to not break if upstream bumps Electron. It installs system packages only, no version pinning of pnpm/electron.
 - Keep `jdx/mise-action` on v4 or newer. Current client mise installs Node and pnpm from `client/.mise/config.toml`; on Windows, these tools require the action's `mise-shim.exe` setup. Mise 2026.7.7 can still lose Node at its nested Windows task-process boundary even while PowerShell resolves Node correctly, so the Windows job expands the relevant `client/.mise/tasks/` operations into direct pnpm commands. Keep those commands synchronized with the client tasks. Do not "fix" this by reconstructing PATH from machine/user environment variables because that drops paths GitHub added through `GITHUB_PATH`.
+- Keep the workflow actions on Node 24-capable major versions or newer: `actions/checkout@v7`, `actions/setup-node@v7`, `actions/upload-artifact@v7`, `actions/download-artifact@v8`, `pnpm/action-setup@v6`, and `softprops/action-gh-release@v3`. Older majors emit Node 20 action-runtime deprecation warnings even when the configured build toolchain itself is newer.
 
 ### 5.4 Why the upstream workflows were dropped
 

@@ -129,7 +129,7 @@ The workflow uses the web client at `Trifall/stoat-for-web`. If you fork the cli
 
 ```yaml
 - name: Checkout client repo
-  uses: actions/checkout@v4
+  uses: actions/checkout@v7
   with:
     repository: YOUR_USERNAME/YOUR_FORK  # Change this if you forked
     path: client
@@ -179,9 +179,9 @@ If macOS support is added in the future:
 ### Change Node.js Version
 Edit the `node-version` in the workflow:
 ```yaml
-- uses: actions/setup-node@v4
+- uses: actions/setup-node@v7
   with:
-    node-version: '21'  # or '18', '22', etc.
+    node-version: '24'
 ```
 
 ### Add More Makers

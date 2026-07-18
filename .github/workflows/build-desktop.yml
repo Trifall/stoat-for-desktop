@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout desktop repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -28,7 +28,7 @@ jobs:
 
       - name: Checkout client repo
         if: ${{ !env.ACT }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Trifall/stoat-for-web
           path: client
@@ -47,12 +47,12 @@ jobs:
           echo "client/ directory found"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "pnpm"
           cache-dependency-path: "**/pnpm-lock.yaml"
 
@@ -152,7 +152,7 @@ jobs:
           fi
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: stoat-desktop-linux
           path: ${{ steps.find-zip.outputs.zip_path }}
@@ -163,7 +163,7 @@ jobs:
 
     steps:
       - name: Checkout desktop repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -174,7 +174,7 @@ jobs:
 
       - name: Checkout client repo
         if: ${{ !env.ACT }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Trifall/stoat-for-web
           path: client
@@ -192,12 +192,12 @@ jobs:
           Write-Host "client/ directory found"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "pnpm"
           cache-dependency-path: "**/pnpm-lock.yaml"
 
@@ -313,7 +313,7 @@ jobs:
           }
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: stoat-desktop-windows
           path: ${{ steps.find-zip.outputs.zip_path }}
@@ -326,18 +326,18 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0  # required for git log + tag history
 
       - name: Download Linux artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: stoat-desktop-linux
           path: artifacts
 
       - name: Download Windows artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: stoat-desktop-windows
           path: artifacts
@@ -372,7 +372,7 @@ jobs:
           echo "previous_tag=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: artifacts/*.zip
           tag_name: ${{ github.event.inputs.version || github.ref_name }}
