@@ -48,11 +48,10 @@ if (acquiredLock) {
     // initialise build URL from command line
     initBuildUrl();
 
-    // enable auto start on Windows and MacOS
+    // save first launch state
     if (config.firstLaunch) {
-      if (process.platform === "win32" || process.platform === "darwin") {
-        autoLaunch.enable();
-      }
+      // Doesn't do anything right now. Used to enable auto start, but that behaviour was removed.
+      // Left in case it gets used in the future.
       config.firstLaunch = false;
     }
 

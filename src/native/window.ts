@@ -326,10 +326,14 @@ export function createMainWindow() {
           if (sources.length == 1) {
             // TODO: Get audio to work with wayland
             // See vencord for an implementation using a virtual microphone.
-            callback({
-              video: sources[0],
-              audio: request.audioRequested ? "loopbackWithMute" : undefined,
-            });
+            request.audioRequested
+              ? callback({
+                  video: sources[0],
+                  audio: "loopback",
+                })
+              : callback({
+                  video: sources[0],
+                });
             return;
           }
           ipcMain.once(
@@ -338,10 +342,14 @@ export function createMainWindow() {
               if (idx < 0 || idx > sources.length) {
                 callback({});
               } else {
-                callback({
-                  video: sources[idx],
-                  audio: audio ? "loopbackWithMute" : undefined,
-                });
+                audio
+                  ? callback({
+                      video: sources[idx],
+                      audio: "loopback",
+                    })
+                  : callback({
+                      video: sources[idx],
+                    });
               }
             },
           );
