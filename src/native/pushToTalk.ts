@@ -423,12 +423,14 @@ function handleBeforeInputEvent(event: Electron.Event, input: Electron.Input) {
         return;
       }
       heldKeys.add(keyIdentifier);
+      heldPttBindingsByKey.set(keyStateId, matchingKeybind.id);
 
       isPttActive = !isPttActive;
       sendPttState(isPttActive);
       pttLog("PTT toggled:", isPttActive ? "ON" : "OFF");
     } else if (input.type === "keyUp") {
       heldKeys.delete(keyIdentifier);
+      heldPttBindingsByKey.delete(keyStateId);
     }
   }
 }
@@ -553,16 +555,20 @@ async function startKeyspy(): Promise<void> {
         }
       } else {
         if (event.state === "DOWN") {
-          if (heldKeys.has(keyName)) {
+          if (heldKeys.has(keyName) || heldKeys.has(mappedKey)) {
             return false;
           }
           heldKeys.add(keyName);
+          heldKeys.add(mappedKey);
+          heldPttBindingsByKey.set(keyStateId, matchingKeybind.id);
 
           isPttActive = !isPttActive;
           sendPttState(isPttActive);
           pttLog("Keyspy PTT toggled:", isPttActive ? "ON" : "OFF");
         } else if (event.state === "UP") {
           heldKeys.delete(keyName);
+          heldKeys.delete(mappedKey);
+          heldPttBindingsByKey.delete(keyStateId);
         }
       }
 
