@@ -95,6 +95,8 @@ Relevant files include:
   - JSON-array string for multiple bindings, such as `["Shift+V","F8"]`.
 - Preserve special-key normalization on all input paths, including Windows OEM punctuation mappings.
 - Relax modifier matching on key-up because modifiers may be released before the main key.
+- Record the resolved binding for every accepted PTT key-down in both hold and toggle modes, then use that association to process and clear key-up state.
+- Keep key-down and key-up bookkeeping symmetrical across focused Electron input and unfocused keyspy input. When repeat detection checks both raw and normalized key names, add and remove both forms together.
 - Track multiple held PTT bindings and deactivate hold mode only after the final held binding is released.
 - Clear held-key bookkeeping during focus transitions to prevent stuck state.
 - Deactivate immediately on focus/blur transitions in hold mode, but preserve latched state in toggle mode.
@@ -104,6 +106,8 @@ Relevant files include:
 - Do not collapse focused and unfocused input handling into one mechanism without proving equivalent cross-platform behavior.
 - Do not call `preventDefault()` on focused PTT input if it prevents users from typing the key in chat.
 - Do not update only one parser, key map, modifier rule, or special-key path.
+- Do not skip release bookkeeping in toggle mode. Although key-up must not deactivate latched PTT, it must clear held-key and binding ownership state so the next press is not mistaken for autorepeat.
+- Do not reconstruct key-up ownership from the current modifier state; retain the binding selected on key-down because modifiers and configuration may differ by release time.
 - Do not change `pushToTalkKeybind` from a string without a persisted-data migration and paired-web update.
 - Do not deactivate toggle mode on window blur or focus transitions.
 - Do not let releasing one of several active PTT bindings mute while another binding remains held.
