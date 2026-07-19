@@ -106,6 +106,8 @@ jobs:
 
       - name: Build web client
         working-directory: client
+        env:
+          VITE_CFG_ENABLE_VIDEO: "true"
         run: mise build
 
       - name: Copy web assets to desktop
@@ -265,6 +267,8 @@ jobs:
 
       - name: Build web client
         working-directory: client
+        env:
+          VITE_CFG_ENABLE_VIDEO: "true"
         run: |
           pnpm --filter client exec node scripts/copyAssets.mjs
           pnpm --filter client exec vite build

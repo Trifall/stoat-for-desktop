@@ -159,6 +159,9 @@ Check the `forge.config.ts` to ensure the maker-zip output path matches what the
 ### Audio Assets Missing
 Ensure `client/packages/client/scripts/assets_fallback/audio/` exists with all 7 .wav files in the stoat-for-web repo.
 
+### Camera and Screen Share Show "Coming soon!"
+Video support is compiled into the web bundle through `VITE_CFG_ENABLE_VIDEO`. Local builds may receive it from an ignored `packages/client/.env`, but CI checkouts do not include that file. Both workflow web-build steps must explicitly set `VITE_CFG_ENABLE_VIDEO: "true"`; otherwise the release bundle permanently renders camera and screen sharing as unavailable even though the Electron screen picker is implemented.
+
 ### Client Repo Not Found
 Make sure the `repository` field in the checkout step matches your actual GitHub username/repo name for the web client.
 
