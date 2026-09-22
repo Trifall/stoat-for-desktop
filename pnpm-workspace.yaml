@@ -14,7 +14,6 @@ nodeLinker: hoisted
 blockExoticSubdeps: false # required to make discord-rpc work
 
 minimumReleaseAgeExclude:
-  - electron@43.4.0
   - node-pipewire@1.1.0
 
 patchedDependencies:

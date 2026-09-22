@@ -245,7 +245,7 @@ Relevant files include:
 - Keep Linux X11/XInput development packages and Windows MinGW available in packaging environments.
 - Keep `electron-rebuild` available when native modules must target a new Electron ABI.
 - Preserve the `cross-zip@4.0.1` patch until the dependency is upgraded to a version that no longer uses unsupported recursive `rmdir` calls.
-- Preserve the exact release-age exceptions for `electron@43.4.0` and `node-pipewire@1.1.0` until both packages naturally satisfy the inherited cooldown policy.
+- Preserve the exact release-age exception for `node-pipewire@1.1.0` until it naturally satisfies the inherited cooldown policy.
 - Inspect packaged output for native servers and unpacked module files.
 - Regenerate `pnpm-lock.yaml` with `pnpm install --no-frozen-lockfile` after approved dependency conflict resolution, then verify with a frozen install.
 

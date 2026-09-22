@@ -372,7 +372,7 @@ The fork's `package.json` carries forward:
   - `@homebridge/dbus-native`, `auto-launch`, `bufferutil`, `utf-8-validate` — some are fork-added dependencies for features below.
 - **`devDependencies`:**
   - `electron-rebuild: ^3.2.9` — fork-added; needed to rebuild native modules against new Electron versions when upstream bumps Electron. Upstream relies on `@electron-forge/plugin-auto-unpack-natives` instead.
-  - `electron: ^43.4.0` — adopted from upstream 1.5.1 to fix Windows/macOS stream echo; native ABI and packaged PTT require revalidation when this changes.
+  - `electron: 44.3.0` (exact) — adopted from upstream 1.5.4; native ABI and packaged PTT require revalidation when this changes.
   - `@electron-forge/plugin-auto-unpack-natives: ^7.11.2` — required for the `node-pipewire` native binding.
 - **`packageManager`:** `pnpm@11.17.0+sha512:...` — pins pnpm via Corepack and matches `.mise/config.toml`. Regenerate and verify the lockfile with this version.
 
@@ -380,7 +380,7 @@ The fork's `package.json` carries forward:
 
 Fork additions on top of upstream:
 
-- **`packagerConfig.asar.unpack: "**/node_modules/keyspy/**/*"`** — required because keyspy spawns a native child process that cannot live inside asar. Lose this and packaged PTT silently breaks.
+- **`packagerConfig.asar.unpack: "**/node_modules/keyspy/**/\*"`** — required because keyspy spawns a native child process that cannot live inside asar. Lose this and packaged PTT silently breaks.
 - **`packagerConfig.extraResource: ["web-dist"]`** — ships the web client alongside the app for `stoat://` (see §3).
 - **Platform icon selection** — macOS uses the liquid-glass `.icon` asset while other platforms retain the existing icon base. Upstream's blanket `osxSign.optionsForFile` configuration is intentionally not carried because post-package native copies would invalidate the signature and one minimal entitlement set is unsafe for every helper.
 - **`packageAfterCopy`** — on Linux, stages only `node-pipewire`'s runtime `dist`, `LICENSE`, and `package.json` before asar/signing. The auto-unpack-natives plugin keeps its native binding outside asar.
@@ -392,7 +392,7 @@ Fork additions on top of upstream:
 - **`postPackage(forgeConfig, options)`** — recursively copies:
   - `node_modules/keyspy` → `resources/app.asar.unpacked/node_modules/keyspy`
   - `node_modules/@expo/sudo-prompt` → `resources/app.asar.unpacked/node_modules/@expo/sudo-prompt` (needed by auto-launch on some platforms).
-- **Flatpak configuration:** `MakerFlatpak` uses application ID `chat.stoat.StoatDesktop`, runtime `25.08`, zypak `v2025.09`, and the current socket, PipeWire, filesystem, and environment permissions. Keep the maker configuration available for local builds, but do not add Flatpak publication to the fork's release workflow without a separate decision.
+- **Flatpak configuration:** `MakerFlatpak` uses application ID `chat.stoat.StoatDesktop`, runtime `25.08`, zypak `v2025.09`, and the current socket, PipeWire, filesystem, and environment permissions. Keep the maker configuration available for local builds, but do not add Flatpak publication to the fork's release workflow without a separate decision. Upstream 1.5.4 sets a runtime `TMPDIR` under `FLATPAK_ID` in `src/main.ts` for tray-icon visibility (user-approved 9/22 even though it targets the same path removed from the manifest for the single-instance lock); the manifest itself keeps no `TMPDIR`/`ELECTRON_TRASH` env, and `run:flatpak` runs without `--socket=session-bus`.
 - **`MakerSquirrel` iconUrl** still points at `https://stoat.chat/app/assets/icon-DUSNE-Pb.ico`.
 - **Publishers:** `PublisherGithub` → `{ owner: "stoatchat", name: "for-desktop" }`. Fork release artifacts go to the fork's own releases via `create-release` in the workflow; this publisher is used by `pnpm publish` (rarely run).
 
@@ -417,7 +417,7 @@ All five must stay external — Vite must not try to bundle them. `keyspy` and `
 - **`blockExoticSubdeps: false`:** required for the Git dependency used by `discord-rpc`.
 - **`patchedDependencies`:** `cross-zip@4.0.1: patches/cross-zip@4.0.1.patch` (see §7).
 - **`overrides.yauzl: ^3.3.1`:** preserves upstream's Node 26 extraction compatibility fix.
-- **`minimumReleaseAgeExclude`:** narrowly exempts exact `electron@43.4.0` and `node-pipewire@1.1.0` versions approved during the 1.5.1 merge; do not broaden the inherited seven-day cooldown policy.
+- **`minimumReleaseAgeExclude`:** narrowly exempts exact `node-pipewire@1.1.0` (the `electron@43.4.0` entry was dropped with the upstream 1.5.4 Electron 44 bump); do not broaden the inherited seven-day cooldown policy.
 
 ### 6.5 `assets` submodule
 
@@ -679,4 +679,4 @@ Test native Wayland screen/window sharing with and without audio, multiple appli
 
 ---
 
-_Last updated: after integrating upstream 1.5.3 while preserving the fork release and AppImage pipeline._
+_Last updated: after integrating upstream 1.5.4 (Electron 44, Flatpak icon fix, nix flake) while preserving the fork release and AppImage pipeline._

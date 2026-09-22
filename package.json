@@ -1,7 +1,7 @@
 {
   "name": "stoat-desktop",
   "productName": "stoat-desktop",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "main": ".vite/build/main.js",
   "repository": "stoatchat/desktop",
   "scripts": {
@@ -15,7 +15,7 @@
     "fmt": "prettier --check 'src/**/*.{ts,tsx,json}'",
     "fmt:fix": "prettier --write 'src/**/*.{ts,tsx,json}'",
     "install:flatpak": "flatpak --user install out/make/flatpak/x86_64/chat.stoat.StoatDesktop_stable_x86_64.flatpak",
-    "run:flatpak": "flatpak run --socket=session-bus chat.stoat.StoatDesktop",
+    "run:flatpak": "flatpak run chat.stoat.StoatDesktop",
     "run:nix": "/usr/bin/env electron-nix ."
   },
   "keywords": [],
@@ -41,7 +41,7 @@
     "@types/electron-squirrel-startup": "^1.0.2",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
-    "electron": "43.4.0",
+    "electron": "44.3.0",
     "electron-rebuild": "^3.2.9",
     "electron-windows-store": "^2.1.0",
     "eslint": "^8.57.1",
